@@ -10,13 +10,22 @@ spring:
     username: ${POSTGRES_USER:payledger_app}
     password: ${POSTGRES_PASSWORD:payledger_dev_only}
 
+  jackson:
+    time-zone: UTC
+
   jpa:
     open-in-view: false
     hibernate:
       ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
 
   flyway:
     enabled: true
+    clean-disabled: true
+    validate-migration-naming: true
 
 management:
   endpoints:
