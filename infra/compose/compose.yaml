@@ -1,0 +1,35 @@
+name: payledger-local
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: payledger
+      POSTGRES_USER: payledger_app
+      POSTGRES_PASSWORD: payledger_dev_only
+    ports:
+      - "55433:5432"
+    volumes:
+      - payledger_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    ports:
+      - "56379:6379"
+    volumes:
+      - payledger_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  payledger_postgres_data:
+  payledger_redis_data:

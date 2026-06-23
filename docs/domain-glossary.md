@@ -1,0 +1,58 @@
+# PayLedger Domain Glossary
+
+## Customer
+An end user who owns one or more wallets and can initiate approved financial operations.
+
+## Merchant
+A business entity that accepts payments and receives settlement.
+
+## Wallet
+A customer-facing financial container associated with one or more ledger accounts.
+
+## Ledger Account
+An accounting account that records money movement. Examples include customer wallet liability, merchant payable, platform fee revenue, and external clearing accounts.
+
+## Journal Entry
+A single financial event containing one or more balanced ledger postings.
+
+## Ledger Posting
+An immutable debit or credit record inside a journal entry.
+
+## Double-Entry Ledger
+An accounting model in which every journal entry has equal total debits and credits.
+
+## Available Balance
+The amount a customer may currently spend or transfer.
+
+## Pending Balance
+The amount reserved or awaiting final settlement, capture, reversal, or failure.
+
+## Transfer
+A movement of funds between internal wallet accounts.
+
+## Payment Intent
+A payment request that moves through explicit lifecycle states before final completion.
+
+## Settlement
+The process of making merchant funds available after payment processing and fee calculation.
+
+## Reconciliation
+Comparing PayLedger records against an external-provider statement to detect missing, duplicated, or mismatched transactions.
+
+## Refund
+Returning funds to the original payer after a completed payment.
+
+## Reversal
+A compensating financial event that cancels the economic effect of an earlier event without editing historical records.
+
+## Idempotency Key
+A client-provided unique key that ensures retrying the same financial request does not execute it twice.
+
+## Webhook
+An asynchronous HTTP callback sent by an external provider to report an event, such as payment success or failure.
+
+## Outbox Event
+A database record written within the same transaction as a business change, then published safely to an event system later.
+
+## Audit Event
+An immutable record describing who performed a sensitive action, when it occurred, and what changed.

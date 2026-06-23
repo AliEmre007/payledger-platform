@@ -1,0 +1,28 @@
+server:
+  port: ${SERVER_PORT:18080}
+
+spring:
+  application:
+    name: payledger-api
+
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:55433}/${POSTGRES_DB:payledger}
+    username: ${POSTGRES_USER:payledger_app}
+    password: ${POSTGRES_PASSWORD:payledger_dev_only}
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+
+  flyway:
+    enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
