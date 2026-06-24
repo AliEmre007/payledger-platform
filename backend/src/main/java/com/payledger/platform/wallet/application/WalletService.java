@@ -44,9 +44,9 @@ public class WalletService {
                 });
 
         /*
-         * Flush writes the wallet before we create the ledger account that
-         * references it through a foreign key. It does not commit the transaction.
-         * If ledger-account creation fails, the wallet insert is rolled back too.
+         * Writes the wallet before creating its linked ledger account.
+         * This does not commit yet. If ledger-account creation fails,
+         * the transaction rolls back and the wallet is not kept.
          */
         Wallet wallet = walletRepository.saveAndFlush(
                 Wallet.create(customerId, currency)

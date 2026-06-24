@@ -1,6 +1,3 @@
--- Every customer wallet must have one matching liability ledger account.
--- This backfills development wallets created before automatic provisioning.
-
 INSERT INTO ledger_accounts (
     id,
     account_code,

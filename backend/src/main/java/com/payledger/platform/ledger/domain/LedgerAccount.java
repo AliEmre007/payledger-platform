@@ -46,12 +46,7 @@ public class LedgerAccount {
     protected LedgerAccount() {
     }
 
-    private LedgerAccount(
-            UUID id,
-            String accountCode,
-            UUID walletId,
-            String currency
-    ) {
+    private LedgerAccount(UUID id, String accountCode, UUID walletId, String currency) {
         this.id = id;
         this.accountCode = accountCode;
         this.accountType = LedgerAccountType.LIABILITY;
@@ -90,6 +85,10 @@ public class LedgerAccount {
 
     public NormalBalance getNormalBalance() {
         return normalBalance;
+    }
+
+    public LedgerAccountOwnerType getOwnerType() {
+        return ownerType;
     }
 
     public UUID getWalletId() {

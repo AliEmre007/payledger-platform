@@ -11,7 +11,9 @@ public class LedgerAccountService {
 
     private final LedgerAccountRepository ledgerAccountRepository;
 
-    public LedgerAccountService(LedgerAccountRepository ledgerAccountRepository) {
+    public LedgerAccountService(
+            LedgerAccountRepository ledgerAccountRepository
+    ) {
         this.ledgerAccountRepository = ledgerAccountRepository;
     }
 
