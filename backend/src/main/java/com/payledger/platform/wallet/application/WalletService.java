@@ -1,7 +1,11 @@
 package com.payledger.platform.wallet.application;
 
+import com.payledger.platform.audit.application.AuditEventCommand;
+import com.payledger.platform.audit.application.AuditEventService;
 import com.payledger.platform.customer.application.CustomerService;
 import com.payledger.platform.ledger.application.LedgerAccountService;
+import com.payledger.platform.outbox.application.OutboxEventCommand;
+import com.payledger.platform.outbox.application.OutboxEventService;
 import com.payledger.platform.shared.error.ConflictException;
 import com.payledger.platform.shared.error.ResourceNotFoundException;
 import com.payledger.platform.wallet.domain.Wallet;
@@ -11,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Currency;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -19,15 +24,21 @@ public class WalletService {
     private final WalletRepository walletRepository;
     private final CustomerService customerService;
     private final LedgerAccountService ledgerAccountService;
+    private final AuditEventService auditEventService;
+    private final OutboxEventService outboxEventService;
 
     public WalletService(
             WalletRepository walletRepository,
             CustomerService customerService,
-            LedgerAccountService ledgerAccountService
+            LedgerAccountService ledgerAccountService,
+            AuditEventService auditEventService,
+            OutboxEventService outboxEventService
     ) {
         this.walletRepository = walletRepository;
         this.customerService = customerService;
         this.ledgerAccountService = ledgerAccountService;
+        this.auditEventService = auditEventService;
+        this.outboxEventService = outboxEventService;
     }
 
     @Transactional
@@ -53,6 +64,31 @@ public class WalletService {
         );
 
         ledgerAccountService.createForWallet(wallet);
+
+        Map<String, Object> metadata = Map.of(
+                "customerId", customerId.toString(),
+                "currency", wallet.getCurrency()
+        );
+
+        auditEventService.record(
+                new AuditEventCommand(
+                        "WALLET_CREATED",
+                        null,
+                        customerId,
+                        "WALLET",
+                        wallet.getId(),
+                        metadata
+                )
+        );
+
+        outboxEventService.enqueue(
+                new OutboxEventCommand(
+                        "WALLET_CREATED",
+                        "WALLET",
+                        wallet.getId(),
+                        metadata
+                )
+        );
 
         return wallet;
     }

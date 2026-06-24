@@ -42,6 +42,7 @@ public class TransferController {
                         request.sourceWalletId(),
                         request.destinationWalletId(),
                         currentCustomer.customerId(),
+                        currentCustomer.externalSubject(),
                         request.amountMinor(),
                         request.currency(),
                         idempotencyKey

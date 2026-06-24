@@ -1,14 +1,19 @@
 package com.payledger.platform.identity.application;
 
+import com.payledger.platform.audit.application.AuditEventCommand;
+import com.payledger.platform.audit.application.AuditEventService;
 import com.payledger.platform.customer.application.CustomerService;
 import com.payledger.platform.identity.domain.CustomerIdentity;
 import com.payledger.platform.identity.domain.IdentityProvider;
 import com.payledger.platform.identity.infrastructure.CustomerIdentityRepository;
+import com.payledger.platform.outbox.application.OutboxEventCommand;
+import com.payledger.platform.outbox.application.OutboxEventService;
 import com.payledger.platform.shared.error.ConflictException;
 import com.payledger.platform.shared.error.IdentityNotLinkedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -16,13 +21,19 @@ public class CustomerIdentityService {
 
     private final CustomerService customerService;
     private final CustomerIdentityRepository customerIdentityRepository;
+    private final AuditEventService auditEventService;
+    private final OutboxEventService outboxEventService;
 
     public CustomerIdentityService(
             CustomerService customerService,
-            CustomerIdentityRepository customerIdentityRepository
+            CustomerIdentityRepository customerIdentityRepository,
+            AuditEventService auditEventService,
+            OutboxEventService outboxEventService
     ) {
         this.customerService = customerService;
         this.customerIdentityRepository = customerIdentityRepository;
+        this.auditEventService = auditEventService;
+        this.outboxEventService = outboxEventService;
     }
 
     @Transactional
@@ -66,12 +77,42 @@ public class CustomerIdentityService {
             );
         }
 
-        return customerIdentityRepository.saveAndFlush(
+        CustomerIdentity identity = customerIdentityRepository.saveAndFlush(
                 CustomerIdentity.linkKeycloak(
                         customerId,
                         normalizedSubject
                 )
         );
+
+        Map<String, Object> metadata = Map.of(
+                "identityProvider", identity.getIdentityProvider().name()
+        );
+
+        auditEventService.record(
+                new AuditEventCommand(
+                        "CUSTOMER_IDENTITY_LINKED",
+                        normalizedSubject,
+                        customerId,
+                        "CUSTOMER_IDENTITY",
+                        identity.getId(),
+                        metadata
+                )
+        );
+
+        outboxEventService.enqueue(
+                new OutboxEventCommand(
+                        "CUSTOMER_IDENTITY_LINKED",
+                        "CUSTOMER_IDENTITY",
+                        identity.getId(),
+                        Map.of(
+                                "customerId", customerId.toString(),
+                                "identityProvider",
+                                identity.getIdentityProvider().name()
+                        )
+                )
+        );
+
+        return identity;
     }
 
     @Transactional(readOnly = true)

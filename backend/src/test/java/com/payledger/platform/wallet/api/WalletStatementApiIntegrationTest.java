@@ -83,6 +83,7 @@ class WalletStatementApiIntegrationTest extends PostgresIntegrationTest {
                         sender.wallet().getId(),
                         recipient.wallet().getId(),
                         sender.customer().getId(),
+                        "statement-service-subject-" + UUID.randomUUID(),
                         2_500,
                         "TRY",
                         "statement-transfer-" + UUID.randomUUID()

@@ -310,6 +310,7 @@ class TransferServiceIntegrationTest extends PostgresIntegrationTest {
                 sender.wallet().getId(),
                 recipient.wallet().getId(),
                 sender.customer().getId(),
+                "transfer-service-subject-" + UUID.randomUUID(),
                 amountMinor,
                 "TRY",
                 idempotencyKey

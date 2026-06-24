@@ -8,6 +8,7 @@ public record CreateTransferCommand(
         UUID sourceWalletId,
         UUID destinationWalletId,
         UUID initiatedByCustomerId,
+        String initiatedByExternalSubject,
         long amountMinor,
         String currency,
         String idempotencyKey
@@ -27,6 +28,14 @@ public record CreateTransferCommand(
                 initiatedByCustomerId,
                 "initiatedByCustomerId is required."
         );
+
+        if (initiatedByExternalSubject != null) {
+            initiatedByExternalSubject = initiatedByExternalSubject.trim();
+
+            if (initiatedByExternalSubject.isBlank()) {
+                initiatedByExternalSubject = null;
+            }
+        }
 
         if (sourceWalletId.equals(destinationWalletId)) {
             throw new IllegalArgumentException(

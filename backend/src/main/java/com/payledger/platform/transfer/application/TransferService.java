@@ -1,5 +1,7 @@
 package com.payledger.platform.transfer.application;
 
+import com.payledger.platform.audit.application.AuditEventCommand;
+import com.payledger.platform.audit.application.AuditEventService;
 import com.payledger.platform.ledger.application.LedgerBalance;
 import com.payledger.platform.ledger.application.LedgerBalanceService;
 import com.payledger.platform.ledger.application.LedgerPostingCommand;
@@ -10,6 +12,8 @@ import com.payledger.platform.ledger.domain.LedgerAccount;
 import com.payledger.platform.ledger.domain.LedgerAccountStatus;
 import com.payledger.platform.ledger.domain.PostingDirection;
 import com.payledger.platform.ledger.infrastructure.LedgerAccountRepository;
+import com.payledger.platform.outbox.application.OutboxEventCommand;
+import com.payledger.platform.outbox.application.OutboxEventService;
 import com.payledger.platform.shared.error.IdempotencyConflictException;
 import com.payledger.platform.shared.error.InsufficientFundsException;
 import com.payledger.platform.shared.error.ResourceNotFoundException;
@@ -24,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -35,19 +40,25 @@ public class TransferService {
     private final TransferRepository transferRepository;
     private final LedgerBalanceService ledgerBalanceService;
     private final LedgerService ledgerService;
+    private final AuditEventService auditEventService;
+    private final OutboxEventService outboxEventService;
 
     public TransferService(
             WalletRepository walletRepository,
             LedgerAccountRepository ledgerAccountRepository,
             TransferRepository transferRepository,
             LedgerBalanceService ledgerBalanceService,
-            LedgerService ledgerService
+            LedgerService ledgerService,
+            AuditEventService auditEventService,
+            OutboxEventService outboxEventService
     ) {
         this.walletRepository = walletRepository;
         this.ledgerAccountRepository = ledgerAccountRepository;
         this.transferRepository = transferRepository;
         this.ledgerBalanceService = ledgerBalanceService;
         this.ledgerService = ledgerService;
+        this.auditEventService = auditEventService;
+        this.outboxEventService = outboxEventService;
     }
 
     @Transactional
@@ -153,7 +164,7 @@ public class TransferService {
                 )
         );
 
-        Transfer transfer = Transfer.completed(
+        Transfer transfer = transferRepository.saveAndFlush(Transfer.completed(
                 transferId,
                 sourceWallet.getId(),
                 destinationWallet.getId(),
@@ -163,9 +174,37 @@ public class TransferService {
                 command.currency(),
                 command.idempotencyKey(),
                 fingerprint
+        ));
+
+        Map<String, Object> eventData = Map.of(
+                "sourceWalletId", sourceWallet.getId().toString(),
+                "destinationWalletId", destinationWallet.getId().toString(),
+                "amountMinor", command.amountMinor(),
+                "currency", command.currency(),
+                "journalEntryId", journalEntry.getId().toString()
         );
 
-        return transferRepository.saveAndFlush(transfer);
+        auditEventService.record(
+                new AuditEventCommand(
+                        "INTERNAL_TRANSFER_COMPLETED",
+                        command.initiatedByExternalSubject(),
+                        command.initiatedByCustomerId(),
+                        "TRANSFER",
+                        transfer.getId(),
+                        eventData
+                )
+        );
+
+        outboxEventService.enqueue(
+                new OutboxEventCommand(
+                        "INTERNAL_TRANSFER_COMPLETED",
+                        "TRANSFER",
+                        transfer.getId(),
+                        eventData
+                )
+        );
+
+        return transfer;
     }
 
     private Wallet getWallet(UUID walletId, String label) {

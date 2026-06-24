@@ -32,6 +32,22 @@ The ledger module is the financial source of truth. Wallet balances are derived 
 
 Redis is not the financial source of truth. It may later support caching, rate limiting, locks, or short-lived workflow state.
 
+## Audit And Outbox
+
+Business workflows write audit and outbox rows in the same PostgreSQL
+transaction as the business record and, when applicable, the financial journal.
+
+Audit events are append-only records of customer and platform activity. They
+capture action type, actor identity context, resource identity, trace ID, and
+limited JSON metadata. Metadata must not include bearer tokens, passwords,
+secrets, or unnecessary PII.
+
+Outbox events are append-only pending integration events. They capture a stable
+event identifier, event type, aggregate identity, payload, creation time, and
+initial processing state. A later sprint will add a processor; this foundation
+only guarantees that event intent is committed atomically with the business
+operation.
+
 ## Local Development Topology
 
 Client
@@ -50,6 +66,7 @@ Kafka, Keycloak, Prometheus, Grafana, and MinIO will be added in controlled phas
 - Financial tables are changed only through Flyway migrations.
 - Hibernate validates mappings but does not modify schema.
 - Financial records are append-only where possible.
+- Audit and outbox rows are append-only.
 - All money-moving operations run inside explicit database transactions.
 - Foreign keys, unique constraints, and database checks enforce critical invariants.
 
