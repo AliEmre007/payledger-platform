@@ -86,6 +86,7 @@ class WalletStatementApiIntegrationTest {
                         )
                                 .param("page", "0")
                                 .param("size", "10")
+                                .with(com.payledger.platform.shared.security.TestJwtSupport.customerJwt())
                 )
                 .andExpect(status().isOk())
                 .andExpect(header().exists("X-Trace-Id"))
@@ -123,6 +124,7 @@ class WalletStatementApiIntegrationTest {
                                 "/api/v1/wallets/{walletId}/statement",
                                 UUID.randomUUID()
                         )
+                                .with(com.payledger.platform.shared.security.TestJwtSupport.customerJwt())
                 )
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code")

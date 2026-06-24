@@ -5,6 +5,14 @@ spring:
   application:
     name: payledger-api
 
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:18081/realms/payledger-local}
+          audiences:
+            - ${KEYCLOAK_AUDIENCE:payledger-api}
+
   datasource:
     url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:55433}/${POSTGRES_DB:payledger}
     username: ${POSTGRES_USER:payledger_app}

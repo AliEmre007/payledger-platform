@@ -59,6 +59,7 @@ class WalletBalanceApiIntegrationTest {
         mockMvc.perform(
                         get("/api/v1/wallets/{walletId}/balance",
                                 walletContext.wallet().getId())
+                                .with(com.payledger.platform.shared.security.TestJwtSupport.customerJwt())
                 )
                 .andExpect(status().isOk())
                 .andExpect(header().exists("X-Trace-Id"))
