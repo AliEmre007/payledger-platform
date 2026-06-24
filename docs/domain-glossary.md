@@ -3,11 +3,29 @@
 ## Customer
 An end user who owns one or more wallets and can initiate approved financial operations.
 
+Customers carry a KYC status. Stored values are:
+
+- `NOT_STARTED`: no review has been submitted.
+- `PENDING`: pending operations review.
+- `APPROVED`: verified; eligible for customer-initiated money movement.
+- `REJECTED`: review failed and must be explicitly resubmitted.
+- `EXPIRED`: verification is no longer current.
+
+The product language may call `PENDING` "pending review" and `APPROVED`
+"verified"; the database keeps the existing enum names for compatibility.
+
 ## Merchant
 A business entity that accepts payments and receives settlement.
 
 ## Wallet
 A customer-facing financial container associated with one or more ledger accounts.
+
+Wallet lifecycle states are:
+
+- `ACTIVE`: can participate in permitted money movement.
+- `FROZEN`: cannot debit or receive customer-initiated transfers until an
+  operations user unfreezes it.
+- `CLOSED`: terminal state; allowed only when the ledger-derived balance is zero.
 
 ## Ledger Account
 An accounting account that records money movement. Examples include customer wallet liability, merchant payable, platform fee revenue, and external clearing accounts.
@@ -29,6 +47,10 @@ The amount reserved or awaiting final settlement, capture, reversal, or failure.
 
 ## Transfer
 A movement of funds between internal wallet accounts.
+
+Transfers require the source wallet to belong to the authenticated customer,
+both source and destination customers to have `APPROVED` KYC, and both wallets
+to be `ACTIVE`.
 
 ## Payment Intent
 A payment request that moves through explicit lifecycle states before final completion.
@@ -56,3 +78,6 @@ A database record written within the same transaction as a business change, then
 
 ## Audit Event
 An immutable record describing who performed a sensitive action, when it occurred, and what changed.
+
+Operations KYC decisions and wallet lifecycle changes also write dedicated
+history rows with the previous state, next state, actor subject, and reason.

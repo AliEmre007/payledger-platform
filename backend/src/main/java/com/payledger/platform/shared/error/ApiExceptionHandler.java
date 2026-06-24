@@ -59,6 +59,17 @@ public class ApiExceptionHandler {
         );
     }
 
+    @ExceptionHandler(BusinessRuleViolationException.class)
+    public ResponseEntity<ApiError> handleBusinessRuleViolation(
+            BusinessRuleViolationException exception
+    ) {
+        return error(
+                HttpStatus.UNPROCESSABLE_ENTITY,
+                exception.getCode(),
+                exception.getMessage()
+        );
+    }
+
     @ExceptionHandler(IdentityNotLinkedException.class)
     public ResponseEntity<ApiError> handleIdentityNotLinked(
             IdentityNotLinkedException exception

@@ -3,6 +3,7 @@ package com.payledger.platform.transfer.application;
 import com.payledger.platform.customer.application.CustomerService;
 import com.payledger.platform.customer.domain.Customer;
 import com.payledger.platform.customer.domain.CustomerType;
+import com.payledger.platform.kyc.application.KycOperationsService;
 import com.payledger.platform.ledger.application.LedgerBalance;
 import com.payledger.platform.ledger.application.LedgerBalanceService;
 import com.payledger.platform.ledger.application.LedgerPostingCommand;
@@ -39,6 +40,9 @@ class TransferServiceIntegrationTest extends PostgresIntegrationTest {
 
     @Autowired
     private CustomerService customerService;
+
+    @Autowired
+    private KycOperationsService kycOperationsService;
 
     @Autowired
     private WalletService walletService;
@@ -245,6 +249,7 @@ class TransferServiceIntegrationTest extends PostgresIntegrationTest {
                 "Test " + label + " " + suffix,
                 label + "-" + suffix + "@example.test"
         );
+        approveKyc(customer);
 
         Wallet wallet = walletService.createWallet(customer.getId(), "TRY");
 
@@ -253,6 +258,20 @@ class TransferServiceIntegrationTest extends PostgresIntegrationTest {
                 .orElseThrow();
 
         return new WalletContext(customer, wallet, ledgerAccount);
+    }
+
+    private void approveKyc(Customer customer) {
+        String actor = "kyc-transfer-test-actor-" + UUID.randomUUID();
+        kycOperationsService.submitForReview(
+                customer.getId(),
+                actor,
+                "Prepare customer for transfer service testing."
+        );
+        kycOperationsService.approve(
+                customer.getId(),
+                actor,
+                "Approve customer for transfer service testing."
+        );
     }
 
     private LedgerAccount createPlatformCashAccount() {

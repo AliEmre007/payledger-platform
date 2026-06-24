@@ -61,4 +61,34 @@ public class Wallet {
     public WalletStatus getStatus() {
         return status;
     }
+
+    public void freeze() {
+        if (status != WalletStatus.ACTIVE) {
+            throw new IllegalStateException(
+                    "Only ACTIVE wallets can be frozen."
+            );
+        }
+
+        status = WalletStatus.FROZEN;
+    }
+
+    public void unfreeze() {
+        if (status != WalletStatus.FROZEN) {
+            throw new IllegalStateException(
+                    "Only FROZEN wallets can be unfrozen."
+            );
+        }
+
+        status = WalletStatus.ACTIVE;
+    }
+
+    public void close() {
+        if (status == WalletStatus.CLOSED) {
+            throw new IllegalStateException(
+                    "Wallet is already closed."
+            );
+        }
+
+        status = WalletStatus.CLOSED;
+    }
 }

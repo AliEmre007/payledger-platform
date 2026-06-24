@@ -93,4 +93,38 @@ public class Customer {
     public KycStatus getKycStatus() {
         return kycStatus;
     }
+
+    public void submitKycForReview() {
+        if (kycStatus != KycStatus.NOT_STARTED
+                && kycStatus != KycStatus.REJECTED) {
+            throw new IllegalStateException(
+                    "KYC can only be submitted from NOT_STARTED or REJECTED."
+            );
+        }
+
+        kycStatus = KycStatus.PENDING;
+        status = CustomerStatus.PENDING_KYC;
+    }
+
+    public void approveKyc() {
+        if (kycStatus != KycStatus.PENDING) {
+            throw new IllegalStateException(
+                    "KYC can only be approved from PENDING."
+            );
+        }
+
+        kycStatus = KycStatus.APPROVED;
+        status = CustomerStatus.ACTIVE;
+    }
+
+    public void rejectKyc() {
+        if (kycStatus != KycStatus.PENDING) {
+            throw new IllegalStateException(
+                    "KYC can only be rejected from PENDING."
+            );
+        }
+
+        kycStatus = KycStatus.REJECTED;
+        status = CustomerStatus.PENDING_KYC;
+    }
 }

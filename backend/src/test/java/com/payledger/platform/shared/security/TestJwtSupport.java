@@ -34,4 +34,22 @@ public final class TestJwtSupport {
                         new SimpleGrantedAuthority("ROLE_CUSTOMER")
                 );
     }
+
+    public static RequestPostProcessor operationsJwt(String subject) {
+        return jwt()
+                .jwt(token -> token
+                        .subject(subject)
+                        .claim("preferred_username", "operations")
+                        .claim(
+                                "realm_access",
+                                Map.of(
+                                        "roles",
+                                        List.of("OPERATIONS")
+                                )
+                        )
+                )
+                .authorities(
+                        new SimpleGrantedAuthority("ROLE_OPERATIONS")
+                );
+    }
 }

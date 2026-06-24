@@ -2,6 +2,9 @@ package com.payledger.platform.transfer.application;
 
 import com.payledger.platform.audit.application.AuditEventCommand;
 import com.payledger.platform.audit.application.AuditEventService;
+import com.payledger.platform.customer.domain.Customer;
+import com.payledger.platform.customer.domain.KycStatus;
+import com.payledger.platform.customer.infrastructure.CustomerRepository;
 import com.payledger.platform.ledger.application.LedgerBalance;
 import com.payledger.platform.ledger.application.LedgerBalanceService;
 import com.payledger.platform.ledger.application.LedgerPostingCommand;
@@ -14,6 +17,7 @@ import com.payledger.platform.ledger.domain.PostingDirection;
 import com.payledger.platform.ledger.infrastructure.LedgerAccountRepository;
 import com.payledger.platform.outbox.application.OutboxEventCommand;
 import com.payledger.platform.outbox.application.OutboxEventService;
+import com.payledger.platform.shared.error.BusinessRuleViolationException;
 import com.payledger.platform.shared.error.IdempotencyConflictException;
 import com.payledger.platform.shared.error.InsufficientFundsException;
 import com.payledger.platform.shared.error.ResourceNotFoundException;
@@ -30,12 +34,16 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class TransferService {
 
     private final WalletRepository walletRepository;
+    private final CustomerRepository customerRepository;
     private final LedgerAccountRepository ledgerAccountRepository;
     private final TransferRepository transferRepository;
     private final LedgerBalanceService ledgerBalanceService;
@@ -45,6 +53,7 @@ public class TransferService {
 
     public TransferService(
             WalletRepository walletRepository,
+            CustomerRepository customerRepository,
             LedgerAccountRepository ledgerAccountRepository,
             TransferRepository transferRepository,
             LedgerBalanceService ledgerBalanceService,
@@ -53,6 +62,7 @@ public class TransferService {
             OutboxEventService outboxEventService
     ) {
         this.walletRepository = walletRepository;
+        this.customerRepository = customerRepository;
         this.ledgerAccountRepository = ledgerAccountRepository;
         this.transferRepository = transferRepository;
         this.ledgerBalanceService = ledgerBalanceService;
@@ -86,6 +96,7 @@ public class TransferService {
         );
 
         validateWallets(sourceWallet, destinationWallet, command);
+        validateCustomerKyc(sourceWallet, destinationWallet);
 
         /*
          * The lock remains held until this transaction commits or rolls back.
@@ -241,13 +252,15 @@ public class TransferService {
         }
 
         if (sourceWallet.getStatus() != WalletStatus.ACTIVE) {
-            throw new IllegalArgumentException(
+            throw new BusinessRuleViolationException(
+                    "WALLET_NOT_ACTIVE",
                     "Source wallet is not active."
             );
         }
 
         if (destinationWallet.getStatus() != WalletStatus.ACTIVE) {
-            throw new IllegalArgumentException(
+            throw new BusinessRuleViolationException(
+                    "WALLET_NOT_ACTIVE",
                     "Destination wallet is not active."
             );
         }
@@ -263,6 +276,43 @@ public class TransferService {
         if (!sourceWallet.getCurrency().equals(command.currency())) {
             throw new IllegalArgumentException(
                     "Transfer currency must match the source wallet currency."
+            );
+        }
+    }
+
+    private void validateCustomerKyc(
+            Wallet sourceWallet,
+            Wallet destinationWallet
+    ) {
+        Map<UUID, Customer> customersById = customerRepository
+                .findByIdIn(Set.of(
+                        sourceWallet.getCustomerId(),
+                        destinationWallet.getCustomerId()
+                ))
+                .stream()
+                .collect(Collectors.toMap(Customer::getId, Function.identity()));
+
+        Customer sourceCustomer = customersById.get(sourceWallet.getCustomerId());
+        Customer destinationCustomer =
+                customersById.get(destinationWallet.getCustomerId());
+
+        if (sourceCustomer == null || destinationCustomer == null) {
+            throw new ResourceNotFoundException(
+                    "Transfer customer context could not be resolved."
+            );
+        }
+
+        if (sourceCustomer.getKycStatus() != KycStatus.APPROVED) {
+            throw new BusinessRuleViolationException(
+                    "KYC_NOT_VERIFIED",
+                    "Source customer must have approved KYC before initiating a transfer."
+            );
+        }
+
+        if (destinationCustomer.getKycStatus() != KycStatus.APPROVED) {
+            throw new BusinessRuleViolationException(
+                    "KYC_NOT_VERIFIED",
+                    "Destination customer must have approved KYC before receiving a transfer."
             );
         }
     }

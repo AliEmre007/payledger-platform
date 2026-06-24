@@ -54,6 +54,29 @@ Mitigation:
 - Least-privilege permissions.
 - Immutable audit records.
 - Strong authentication for admin users.
+- Operations-only endpoints require `ROLE_OPERATIONS`.
+- KYC decisions and wallet lifecycle mutations require a reason and write both
+  audit events and dedicated history rows.
+
+### Unverified Customer Money Movement
+An unverified, rejected, or expired customer attempts to initiate or receive a
+wallet transfer.
+
+Mitigation:
+- Customer-initiated transfers require `APPROVED` KYC for both source and
+  destination customers.
+- KYC transitions are explicit and reject skipped states.
+- Operations review decisions are auditable and do not store real KYC
+  documents, biometric data, OCR output, or third-party provider payloads.
+
+### Frozen or Closed Wallet Movement
+A wallet that is frozen for investigation or closed for lifecycle reasons is
+used as a transfer source or destination.
+
+Mitigation:
+- Transfers require both wallets to be `ACTIVE`.
+- Wallet freeze, unfreeze, and close operations are operations-only and audited.
+- Wallet close is rejected while the ledger-derived balance is non-zero.
 
 ### Sensitive Data Leakage
 Secrets, personal data, tokens, or payment information appear in logs or Git history.

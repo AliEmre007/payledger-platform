@@ -45,6 +45,38 @@ For transfers, the source wallet must belong to the JWT-linked customer. The
 destination wallet is an explicit transfer target, but source-wallet ownership
 is always enforced server-side.
 
+Customer-initiated money movement requires both the source and destination
+customers to have approved KYC. Stored status `APPROVED` means verified.
+Transfers require both wallets to be `ACTIVE`; frozen and closed wallets are
+rejected with business-rule errors.
+
+## Operations APIs
+
+Operations APIs use:
+
+/api/v1/operations
+
+These endpoints require `ROLE_OPERATIONS`. They are not customer self-service
+APIs and must not derive authority from customer ownership.
+
+KYC decisions and wallet lifecycle changes:
+
+- Use POST.
+- Require a non-empty reason in the request body.
+- Record the operations actor from the JWT `sub` claim.
+- Create an audit event.
+- Create a dedicated history row containing previous state, next state, actor,
+  reason, and timestamp.
+
+Examples:
+
+POST /api/v1/operations/customers/{customerId}/kyc/submit
+POST /api/v1/operations/customers/{customerId}/kyc/approve
+POST /api/v1/operations/customers/{customerId}/kyc/reject
+POST /api/v1/operations/wallets/{walletId}/freeze
+POST /api/v1/operations/wallets/{walletId}/unfreeze
+POST /api/v1/operations/wallets/{walletId}/close
+
 ## IDs
 
 Public identifiers use UUID values.
