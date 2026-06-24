@@ -14,9 +14,13 @@ public final class TestJwtSupport {
     }
 
     public static RequestPostProcessor customerJwt() {
+        return customerJwt("keycloak-alice-test-subject");
+    }
+
+    public static RequestPostProcessor customerJwt(String subject) {
         return jwt()
                 .jwt(token -> token
-                        .subject("keycloak-alice-test-subject")
+                        .subject(subject)
                         .claim("preferred_username", "alice")
                         .claim(
                                 "realm_access",

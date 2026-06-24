@@ -59,6 +59,28 @@ public class ApiExceptionHandler {
         );
     }
 
+    @ExceptionHandler(IdentityNotLinkedException.class)
+    public ResponseEntity<ApiError> handleIdentityNotLinked(
+            IdentityNotLinkedException exception
+    ) {
+        return error(
+                HttpStatus.FORBIDDEN,
+                "IDENTITY_NOT_LINKED",
+                exception.getMessage()
+        );
+    }
+
+    @ExceptionHandler(WalletAccessDeniedException.class)
+    public ResponseEntity<ApiError> handleWalletAccessDenied(
+            WalletAccessDeniedException exception
+    ) {
+        return error(
+                HttpStatus.FORBIDDEN,
+                "WALLET_ACCESS_DENIED",
+                exception.getMessage()
+        );
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiError> handleInvalidArgument(
             IllegalArgumentException exception

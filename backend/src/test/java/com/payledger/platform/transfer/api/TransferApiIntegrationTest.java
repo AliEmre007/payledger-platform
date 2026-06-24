@@ -4,6 +4,7 @@ import tools.jackson.databind.ObjectMapper;
 import com.payledger.platform.customer.application.CustomerService;
 import com.payledger.platform.customer.domain.Customer;
 import com.payledger.platform.customer.domain.CustomerType;
+import com.payledger.platform.identity.application.CustomerIdentityService;
 import com.payledger.platform.ledger.application.LedgerBalance;
 import com.payledger.platform.ledger.application.LedgerBalanceService;
 import com.payledger.platform.ledger.application.LedgerPostingCommand;
@@ -14,6 +15,7 @@ import com.payledger.platform.ledger.domain.LedgerAccountType;
 import com.payledger.platform.ledger.domain.PostingDirection;
 import com.payledger.platform.ledger.infrastructure.LedgerAccountRepository;
 import com.payledger.platform.transfer.infrastructure.TransferRepository;
+import com.payledger.platform.support.PostgresIntegrationTest;
 import com.payledger.platform.wallet.application.WalletService;
 import com.payledger.platform.wallet.domain.Wallet;
 import org.junit.jupiter.api.Test;
@@ -38,7 +40,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
 @Transactional
-class TransferApiIntegrationTest {
+class TransferApiIntegrationTest extends PostgresIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
@@ -51,6 +53,9 @@ class TransferApiIntegrationTest {
 
     @Autowired
     private WalletService walletService;
+
+    @Autowired
+    private CustomerIdentityService customerIdentityService;
 
     @Autowired
     private LedgerAccountRepository ledgerAccountRepository;
@@ -68,6 +73,11 @@ class TransferApiIntegrationTest {
     void createsTransferThroughHttpApi() throws Exception {
         WalletContext sender = createTryWallet("api-sender");
         WalletContext recipient = createTryWallet("api-recipient");
+        String subject = "api-transfer-subject-" + UUID.randomUUID();
+        customerIdentityService.linkKeycloakIdentity(
+                sender.customer().getId(),
+                subject
+        );
 
         LedgerAccount platformCash = createPlatformCashAccount();
         topUp(platformCash, sender.ledgerAccount(), 10_000);
@@ -77,7 +87,6 @@ class TransferApiIntegrationTest {
         CreateTransferRequest request = new CreateTransferRequest(
                 sender.wallet().getId(),
                 recipient.wallet().getId(),
-                sender.customer().getId(),
                 2_500,
                 "TRY"
         );
@@ -87,7 +96,7 @@ class TransferApiIntegrationTest {
                                 .header("Idempotency-Key", idempotencyKey)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request))
-                                .with(com.payledger.platform.shared.security.TestJwtSupport.customerJwt())
+                                .with(com.payledger.platform.shared.security.TestJwtSupport.customerJwt(subject))
                 )
                 .andExpect(status().isCreated())
                 .andExpect(header().exists("X-Trace-Id"))
@@ -123,11 +132,15 @@ class TransferApiIntegrationTest {
     void returns422WhenSourceWalletHasInsufficientFunds() throws Exception {
         WalletContext sender = createTryWallet("api-insufficient-sender");
         WalletContext recipient = createTryWallet("api-insufficient-recipient");
+        String subject = "api-insufficient-subject-" + UUID.randomUUID();
+        customerIdentityService.linkKeycloakIdentity(
+                sender.customer().getId(),
+                subject
+        );
 
         CreateTransferRequest request = new CreateTransferRequest(
                 sender.wallet().getId(),
                 recipient.wallet().getId(),
-                sender.customer().getId(),
                 1_000,
                 "TRY"
         );
@@ -139,7 +152,7 @@ class TransferApiIntegrationTest {
                                 .header("Idempotency-Key", idempotencyKey)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request))
-                                .with(com.payledger.platform.shared.security.TestJwtSupport.customerJwt())
+                                .with(com.payledger.platform.shared.security.TestJwtSupport.customerJwt(subject))
                 )
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(header().exists("X-Trace-Id"))
@@ -151,6 +164,76 @@ class TransferApiIntegrationTest {
                         idempotencyKey
                 )
         ).isZero();
+    }
+
+    @Test
+    void returns403WhenSourceWalletBelongsToAnotherCustomer()
+            throws Exception {
+        WalletContext owner = createTryWallet("api-owner");
+        WalletContext requester = createTryWallet("api-requester");
+        WalletContext recipient = createTryWallet("api-denied-recipient");
+        String subject = "api-denied-subject-" + UUID.randomUUID();
+        customerIdentityService.linkKeycloakIdentity(
+                requester.customer().getId(),
+                subject
+        );
+
+        LedgerAccount platformCash = createPlatformCashAccount();
+        topUp(platformCash, owner.ledgerAccount(), 10_000);
+
+        CreateTransferRequest request = new CreateTransferRequest(
+                owner.wallet().getId(),
+                recipient.wallet().getId(),
+                2_500,
+                "TRY"
+        );
+
+        String idempotencyKey = "api-denied-" + UUID.randomUUID();
+
+        mockMvc.perform(
+                        post("/api/v1/transfers")
+                                .header("Idempotency-Key", idempotencyKey)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request))
+                                .with(com.payledger.platform.shared.security.TestJwtSupport.customerJwt(subject))
+                )
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("WALLET_ACCESS_DENIED"));
+
+        assertThat(
+                transferRepository.countBySourceWalletIdAndIdempotencyKey(
+                        owner.wallet().getId(),
+                        idempotencyKey
+                )
+        ).isZero();
+    }
+
+    @Test
+    void returns403WhenJwtSubjectIsNotLinked() throws Exception {
+        WalletContext sender = createTryWallet("api-unlinked-sender");
+        WalletContext recipient = createTryWallet("api-unlinked-recipient");
+
+        CreateTransferRequest request = new CreateTransferRequest(
+                sender.wallet().getId(),
+                recipient.wallet().getId(),
+                1_000,
+                "TRY"
+        );
+
+        mockMvc.perform(
+                        post("/api/v1/transfers")
+                                .header(
+                                        "Idempotency-Key",
+                                        "api-unlinked-" + UUID.randomUUID()
+                                )
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request))
+                                .with(com.payledger.platform.shared.security.TestJwtSupport.customerJwt(
+                                        "unlinked-transfer-subject-" + UUID.randomUUID()
+                                ))
+                )
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("IDENTITY_NOT_LINKED"));
     }
 
     private WalletContext createTryWallet(String label) {

@@ -1,5 +1,6 @@
 package com.payledger.platform.shared.security;
 
+import com.payledger.platform.support.PostgresIntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -12,11 +13,12 @@ import java.util.UUID;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
-class ApiSecurityIntegrationTest {
+class ApiSecurityIntegrationTest extends PostgresIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
@@ -33,7 +35,7 @@ class ApiSecurityIntegrationTest {
     }
 
     @Test
-    void allowsAuthenticatedJwtToReachApplicationLayer() throws Exception {
+    void authenticatedJwtWithoutLinkedCustomerIsForbidden() throws Exception {
         mockMvc.perform(
                         get(
                                 "/api/v1/wallets/{walletId}/balance",
@@ -54,6 +56,7 @@ class ApiSecurityIntegrationTest {
                                         )
                                 ))
                 )
-                .andExpect(status().isNotFound());
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("IDENTITY_NOT_LINKED"));
     }
 }

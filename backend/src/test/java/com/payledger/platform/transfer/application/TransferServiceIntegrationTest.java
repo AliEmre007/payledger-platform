@@ -15,6 +15,7 @@ import com.payledger.platform.ledger.infrastructure.JournalEntryRepository;
 import com.payledger.platform.ledger.infrastructure.LedgerAccountRepository;
 import com.payledger.platform.shared.error.IdempotencyConflictException;
 import com.payledger.platform.shared.error.InsufficientFundsException;
+import com.payledger.platform.support.PostgresIntegrationTest;
 import com.payledger.platform.transfer.domain.Transfer;
 import com.payledger.platform.transfer.infrastructure.TransferRepository;
 import com.payledger.platform.wallet.application.WalletService;
@@ -34,7 +35,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @Transactional
-class TransferServiceIntegrationTest {
+class TransferServiceIntegrationTest extends PostgresIntegrationTest {
 
     @Autowired
     private CustomerService customerService;

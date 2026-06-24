@@ -1,5 +1,6 @@
 package com.payledger.platform.ledger.infrastructure;
 
+import com.payledger.platform.support.PostgresIntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -14,7 +15,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
-class UnbalancedJournalEntryDatabaseConstraintTest {
+class UnbalancedJournalEntryDatabaseConstraintTest
+        extends PostgresIntegrationTest {
 
     @Autowired
     private DataSource dataSource;

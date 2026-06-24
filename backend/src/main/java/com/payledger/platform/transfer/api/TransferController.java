@@ -1,5 +1,7 @@
 package com.payledger.platform.transfer.api;
 
+import com.payledger.platform.identity.application.AuthenticatedCustomer;
+import com.payledger.platform.identity.application.CurrentCustomerService;
 import com.payledger.platform.transfer.application.CreateTransferCommand;
 import com.payledger.platform.transfer.application.TransferService;
 import com.payledger.platform.transfer.domain.Transfer;
@@ -17,9 +19,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class TransferController {
 
     private final TransferService transferService;
+    private final CurrentCustomerService currentCustomerService;
 
-    public TransferController(TransferService transferService) {
+    public TransferController(
+            TransferService transferService,
+            CurrentCustomerService currentCustomerService
+    ) {
         this.transferService = transferService;
+        this.currentCustomerService = currentCustomerService;
     }
 
     @PostMapping
@@ -27,11 +34,14 @@ public class TransferController {
             @RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody CreateTransferRequest request
     ) {
+        AuthenticatedCustomer currentCustomer =
+                currentCustomerService.getCurrentCustomer();
+
         Transfer transfer = transferService.createCompletedTransfer(
                 new CreateTransferCommand(
                         request.sourceWalletId(),
                         request.destinationWalletId(),
-                        request.initiatedByCustomerId(),
+                        currentCustomer.customerId(),
                         request.amountMinor(),
                         request.currency(),
                         idempotencyKey

@@ -15,9 +15,6 @@ public record CreateTransferRequest(
         @NotNull
         UUID destinationWalletId,
 
-        @NotNull
-        UUID initiatedByCustomerId,
-
         @Positive
         long amountMinor,
 

@@ -8,6 +8,7 @@ import com.payledger.platform.ledger.application.LedgerStatementService;
 import com.payledger.platform.ledger.domain.LedgerAccount;
 import com.payledger.platform.ledger.domain.PostingDirection;
 import com.payledger.platform.shared.error.ResourceNotFoundException;
+import com.payledger.platform.shared.error.WalletAccessDeniedException;
 import com.payledger.platform.wallet.domain.Wallet;
 import com.payledger.platform.wallet.infrastructure.WalletRepository;
 import org.springframework.stereotype.Service;
@@ -39,6 +40,7 @@ public class WalletStatementService {
     @Transactional(readOnly = true)
     public WalletStatementSnapshot getStatement(
             UUID walletId,
+            UUID customerId,
             int page,
             int size
     ) {
@@ -46,6 +48,8 @@ public class WalletStatementService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Wallet not found: " + walletId
                 ));
+
+        requireOwner(wallet, customerId);
 
         LedgerAccount ledgerAccount = ledgerAccountService.getForWallet(
                 wallet.getId()
@@ -100,5 +104,13 @@ public class WalletStatementService {
         return direction == PostingDirection.CREDIT
                 ? amountMinor
                 : -amountMinor;
+    }
+
+    private void requireOwner(Wallet wallet, UUID customerId) {
+        if (!wallet.getCustomerId().equals(customerId)) {
+            throw new WalletAccessDeniedException(
+                    "The authenticated customer cannot access this wallet."
+            );
+        }
     }
 }

@@ -5,6 +5,7 @@ import com.payledger.platform.ledger.application.LedgerBalance;
 import com.payledger.platform.ledger.application.LedgerBalanceService;
 import com.payledger.platform.ledger.domain.LedgerAccount;
 import com.payledger.platform.shared.error.ResourceNotFoundException;
+import com.payledger.platform.shared.error.WalletAccessDeniedException;
 import com.payledger.platform.wallet.domain.Wallet;
 import com.payledger.platform.wallet.infrastructure.WalletRepository;
 import org.springframework.stereotype.Service;
@@ -30,11 +31,13 @@ public class WalletBalanceService {
     }
 
     @Transactional(readOnly = true)
-    public WalletBalanceSnapshot getBalance(UUID walletId) {
+    public WalletBalanceSnapshot getBalance(UUID walletId, UUID customerId) {
         Wallet wallet = walletRepository.findById(walletId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Wallet not found: " + walletId
                 ));
+
+        requireOwner(wallet, customerId);
 
         LedgerAccount ledgerAccount = ledgerAccountService.getForWallet(
                 wallet.getId()
@@ -50,5 +53,13 @@ public class WalletBalanceService {
                 wallet.getStatus(),
                 ledgerBalance.balanceMinor()
         );
+    }
+
+    private void requireOwner(Wallet wallet, UUID customerId) {
+        if (!wallet.getCustomerId().equals(customerId)) {
+            throw new WalletAccessDeniedException(
+                    "The authenticated customer cannot access this wallet."
+            );
+        }
     }
 }

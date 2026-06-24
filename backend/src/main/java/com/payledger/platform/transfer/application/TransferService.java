@@ -13,6 +13,7 @@ import com.payledger.platform.ledger.infrastructure.LedgerAccountRepository;
 import com.payledger.platform.shared.error.IdempotencyConflictException;
 import com.payledger.platform.shared.error.InsufficientFundsException;
 import com.payledger.platform.shared.error.ResourceNotFoundException;
+import com.payledger.platform.shared.error.WalletAccessDeniedException;
 import com.payledger.platform.transfer.domain.Transfer;
 import com.payledger.platform.transfer.infrastructure.TransferRepository;
 import com.payledger.platform.wallet.domain.Wallet;
@@ -195,8 +196,8 @@ public class TransferService {
         if (!sourceWallet.getCustomerId().equals(
                 command.initiatedByCustomerId()
         )) {
-            throw new IllegalArgumentException(
-                    "The initiating customer must own the source wallet."
+            throw new WalletAccessDeniedException(
+                    "The authenticated customer cannot initiate a transfer from this wallet."
             );
         }
 

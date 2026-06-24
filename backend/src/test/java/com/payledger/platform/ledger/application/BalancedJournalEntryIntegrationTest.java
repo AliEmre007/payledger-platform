@@ -8,6 +8,7 @@ import com.payledger.platform.ledger.domain.LedgerAccount;
 import com.payledger.platform.ledger.domain.LedgerAccountType;
 import com.payledger.platform.ledger.domain.PostingDirection;
 import com.payledger.platform.ledger.infrastructure.LedgerAccountRepository;
+import com.payledger.platform.support.PostgresIntegrationTest;
 import com.payledger.platform.wallet.application.WalletService;
 import com.payledger.platform.wallet.domain.Wallet;
 import org.junit.jupiter.api.Test;
@@ -23,7 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @Transactional
-class BalancedJournalEntryIntegrationTest {
+class BalancedJournalEntryIntegrationTest extends PostgresIntegrationTest {
 
     @Autowired
     private CustomerService customerService;

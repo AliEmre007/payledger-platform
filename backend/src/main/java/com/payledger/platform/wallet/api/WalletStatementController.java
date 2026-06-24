@@ -1,5 +1,7 @@
 package com.payledger.platform.wallet.api;
 
+import com.payledger.platform.identity.application.AuthenticatedCustomer;
+import com.payledger.platform.identity.application.CurrentCustomerService;
 import com.payledger.platform.wallet.application.WalletStatementService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -14,11 +16,14 @@ import java.util.UUID;
 public class WalletStatementController {
 
     private final WalletStatementService walletStatementService;
+    private final CurrentCustomerService currentCustomerService;
 
     public WalletStatementController(
-            WalletStatementService walletStatementService
+            WalletStatementService walletStatementService,
+            CurrentCustomerService currentCustomerService
     ) {
         this.walletStatementService = walletStatementService;
+        this.currentCustomerService = currentCustomerService;
     }
 
     @GetMapping("/{walletId}/statement")
@@ -27,9 +32,13 @@ public class WalletStatementController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size
     ) {
+        AuthenticatedCustomer currentCustomer =
+                currentCustomerService.getCurrentCustomer();
+
         return WalletStatementResponse.from(
                 walletStatementService.getStatement(
                         walletId,
+                        currentCustomer.customerId(),
                         page,
                         size
                 )

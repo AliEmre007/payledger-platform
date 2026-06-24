@@ -3,6 +3,7 @@ package com.payledger.platform.wallet.api;
 import com.payledger.platform.customer.application.CustomerService;
 import com.payledger.platform.customer.domain.Customer;
 import com.payledger.platform.customer.domain.CustomerType;
+import com.payledger.platform.identity.application.CustomerIdentityService;
 import com.payledger.platform.ledger.application.LedgerPostingCommand;
 import com.payledger.platform.ledger.application.LedgerService;
 import com.payledger.platform.ledger.application.PostJournalEntryCommand;
@@ -10,6 +11,7 @@ import com.payledger.platform.ledger.domain.LedgerAccount;
 import com.payledger.platform.ledger.domain.LedgerAccountType;
 import com.payledger.platform.ledger.domain.PostingDirection;
 import com.payledger.platform.ledger.infrastructure.LedgerAccountRepository;
+import com.payledger.platform.support.PostgresIntegrationTest;
 import com.payledger.platform.transfer.application.CreateTransferCommand;
 import com.payledger.platform.transfer.application.TransferService;
 import com.payledger.platform.wallet.application.WalletService;
@@ -34,7 +36,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
 @Transactional
-class WalletStatementApiIntegrationTest {
+class WalletStatementApiIntegrationTest extends PostgresIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
@@ -44,6 +46,9 @@ class WalletStatementApiIntegrationTest {
 
     @Autowired
     private WalletService walletService;
+
+    @Autowired
+    private CustomerIdentityService customerIdentityService;
 
     @Autowired
     private LedgerAccountRepository ledgerAccountRepository;
@@ -58,6 +63,11 @@ class WalletStatementApiIntegrationTest {
     void returnsLedgerEventsThatExplainWalletBalance() throws Exception {
         WalletContext sender = createTryWallet("statement-sender");
         WalletContext recipient = createTryWallet("statement-recipient");
+        String subject = "statement-api-subject-" + UUID.randomUUID();
+        customerIdentityService.linkKeycloakIdentity(
+                sender.customer().getId(),
+                subject
+        );
 
         LedgerAccount platformCash = createPlatformCashAccount();
 
@@ -86,7 +96,7 @@ class WalletStatementApiIntegrationTest {
                         )
                                 .param("page", "0")
                                 .param("size", "10")
-                                .with(com.payledger.platform.shared.security.TestJwtSupport.customerJwt())
+                                .with(com.payledger.platform.shared.security.TestJwtSupport.customerJwt(subject))
                 )
                 .andExpect(status().isOk())
                 .andExpect(header().exists("X-Trace-Id"))
@@ -119,16 +129,62 @@ class WalletStatementApiIntegrationTest {
 
     @Test
     void returns404WhenWalletDoesNotExist() throws Exception {
+        WalletContext requester = createTryWallet("statement-missing");
+        String subject = "statement-missing-subject-" + UUID.randomUUID();
+        customerIdentityService.linkKeycloakIdentity(
+                requester.customer().getId(),
+                subject
+        );
+
         mockMvc.perform(
                         get(
                                 "/api/v1/wallets/{walletId}/statement",
                                 UUID.randomUUID()
                         )
-                                .with(com.payledger.platform.shared.security.TestJwtSupport.customerJwt())
+                                .with(com.payledger.platform.shared.security.TestJwtSupport.customerJwt(subject))
                 )
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code")
                         .value("RESOURCE_NOT_FOUND"));
+    }
+
+    @Test
+    void returns403WhenLinkedCustomerReadsAnotherCustomersStatement()
+            throws Exception {
+        WalletContext owner = createTryWallet("statement-owner");
+        WalletContext requester = createTryWallet("statement-requester");
+        String subject = "statement-denied-subject-" + UUID.randomUUID();
+        customerIdentityService.linkKeycloakIdentity(
+                requester.customer().getId(),
+                subject
+        );
+
+        mockMvc.perform(
+                        get(
+                                "/api/v1/wallets/{walletId}/statement",
+                                owner.wallet().getId()
+                        )
+                                .with(com.payledger.platform.shared.security.TestJwtSupport.customerJwt(subject))
+                )
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("WALLET_ACCESS_DENIED"));
+    }
+
+    @Test
+    void returns403WhenJwtSubjectIsNotLinked() throws Exception {
+        WalletContext walletContext = createTryWallet("statement-unlinked");
+
+        mockMvc.perform(
+                        get(
+                                "/api/v1/wallets/{walletId}/statement",
+                                walletContext.wallet().getId()
+                        )
+                                .with(com.payledger.platform.shared.security.TestJwtSupport.customerJwt(
+                                        "unlinked-statement-subject-" + UUID.randomUUID()
+                                ))
+                )
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("IDENTITY_NOT_LINKED"));
     }
 
     private WalletContext createTryWallet(String label) {

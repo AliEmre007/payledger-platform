@@ -1,0 +1,7 @@
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost.test/realms/payledger-test
+          jwk-set-uri: http://localhost.test/realms/payledger-test/protocol/openid-connect/certs

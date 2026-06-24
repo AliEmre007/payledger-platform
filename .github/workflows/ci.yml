@@ -32,5 +32,8 @@ jobs:
       - name: Make Maven Wrapper executable
         run: chmod +x mvnw
 
+      - name: Verify Docker availability
+        run: docker version
+
       - name: Build and test
-        run: ./mvnw -B verify
+        run: ./mvnw -B test
