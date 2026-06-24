@@ -1,13 +1,10 @@
 package com.payledger.platform.wallet.application;
 
-import com.payledger.platform.wallet.domain.WalletStatus;
-
 import java.util.UUID;
 
-public record WalletBalanceSnapshot(
+public record WalletAvailableBalance(
         UUID walletId,
         String currency,
-        WalletStatus status,
         long ledgerBalanceMinor,
         long heldAmountMinor,
         long availableBalanceMinor

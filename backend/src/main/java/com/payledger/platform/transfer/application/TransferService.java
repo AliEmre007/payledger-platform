@@ -5,8 +5,6 @@ import com.payledger.platform.audit.application.AuditEventService;
 import com.payledger.platform.customer.domain.Customer;
 import com.payledger.platform.customer.domain.KycStatus;
 import com.payledger.platform.customer.infrastructure.CustomerRepository;
-import com.payledger.platform.ledger.application.LedgerBalance;
-import com.payledger.platform.ledger.application.LedgerBalanceService;
 import com.payledger.platform.ledger.application.LedgerPostingCommand;
 import com.payledger.platform.ledger.application.LedgerService;
 import com.payledger.platform.ledger.application.PostJournalEntryCommand;
@@ -24,6 +22,8 @@ import com.payledger.platform.shared.error.ResourceNotFoundException;
 import com.payledger.platform.shared.error.WalletAccessDeniedException;
 import com.payledger.platform.transfer.domain.Transfer;
 import com.payledger.platform.transfer.infrastructure.TransferRepository;
+import com.payledger.platform.wallet.application.WalletAvailableBalance;
+import com.payledger.platform.wallet.application.WalletAvailableBalanceService;
 import com.payledger.platform.wallet.domain.Wallet;
 import com.payledger.platform.wallet.domain.WalletStatus;
 import com.payledger.platform.wallet.infrastructure.WalletRepository;
@@ -46,7 +46,7 @@ public class TransferService {
     private final CustomerRepository customerRepository;
     private final LedgerAccountRepository ledgerAccountRepository;
     private final TransferRepository transferRepository;
-    private final LedgerBalanceService ledgerBalanceService;
+    private final WalletAvailableBalanceService availableBalanceService;
     private final LedgerService ledgerService;
     private final AuditEventService auditEventService;
     private final OutboxEventService outboxEventService;
@@ -56,7 +56,7 @@ public class TransferService {
             CustomerRepository customerRepository,
             LedgerAccountRepository ledgerAccountRepository,
             TransferRepository transferRepository,
-            LedgerBalanceService ledgerBalanceService,
+            WalletAvailableBalanceService availableBalanceService,
             LedgerService ledgerService,
             AuditEventService auditEventService,
             OutboxEventService outboxEventService
@@ -65,7 +65,7 @@ public class TransferService {
         this.customerRepository = customerRepository;
         this.ledgerAccountRepository = ledgerAccountRepository;
         this.transferRepository = transferRepository;
-        this.ledgerBalanceService = ledgerBalanceService;
+        this.availableBalanceService = availableBalanceService;
         this.ledgerService = ledgerService;
         this.auditEventService = auditEventService;
         this.outboxEventService = outboxEventService;
@@ -140,11 +140,12 @@ public class TransferService {
                 "Destination ledger account"
         );
 
-        LedgerBalance sourceBalance = ledgerBalanceService.calculate(
-                sourceLedgerAccount.getId()
+        WalletAvailableBalance sourceBalance = availableBalanceService.calculate(
+                sourceWallet,
+                sourceLedgerAccount
         );
 
-        if (sourceBalance.balanceMinor() < command.amountMinor()) {
+        if (sourceBalance.availableBalanceMinor() < command.amountMinor()) {
             throw new InsufficientFundsException(
                     "Source wallet does not have sufficient available funds."
             );

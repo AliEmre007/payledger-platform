@@ -12,6 +12,8 @@ import com.payledger.platform.ledger.domain.LedgerAccountType;
 import com.payledger.platform.ledger.domain.PostingDirection;
 import com.payledger.platform.ledger.infrastructure.LedgerAccountRepository;
 import com.payledger.platform.support.PostgresIntegrationTest;
+import com.payledger.platform.wallet.application.CreateFundsHoldCommand;
+import com.payledger.platform.wallet.application.FundsHoldService;
 import com.payledger.platform.wallet.application.WalletService;
 import com.payledger.platform.wallet.domain.Wallet;
 import org.junit.jupiter.api.Test;
@@ -54,6 +56,9 @@ class WalletBalanceApiIntegrationTest extends PostgresIntegrationTest {
     @Autowired
     private LedgerService ledgerService;
 
+    @Autowired
+    private FundsHoldService fundsHoldService;
+
     @Test
     void returnsBalanceDerivedFromLedgerPostings() throws Exception {
         WalletContext walletContext = createTryWallet("balance-api");
@@ -78,7 +83,41 @@ class WalletBalanceApiIntegrationTest extends PostgresIntegrationTest {
                         .value(walletContext.wallet().getId().toString()))
                 .andExpect(jsonPath("$.currency").value("TRY"))
                 .andExpect(jsonPath("$.status").value("ACTIVE"))
-                .andExpect(jsonPath("$.ledgerBalanceMinor").value(12_345));
+                .andExpect(jsonPath("$.ledgerBalanceMinor").value(12_345))
+                .andExpect(jsonPath("$.heldAmountMinor").value(0))
+                .andExpect(jsonPath("$.availableBalanceMinor").value(12_345));
+    }
+
+    @Test
+    void returnsAvailableBalanceAfterActiveHolds() throws Exception {
+        WalletContext walletContext = createTryWallet("balance-hold-api");
+        String subject = "balance-hold-subject-" + UUID.randomUUID();
+        customerIdentityService.linkKeycloakIdentity(
+                walletContext.customer().getId(),
+                subject
+        );
+
+        LedgerAccount platformCash = createPlatformCashAccount();
+        topUp(platformCash, walletContext.ledgerAccount(), 12_345);
+        fundsHoldService.create(new CreateFundsHoldCommand(
+                walletContext.wallet().getId(),
+                2_345,
+                "TRY",
+                "Reserve funds for balance API testing.",
+                "BALANCE_API_TEST",
+                UUID.randomUUID(),
+                "balance-hold-" + UUID.randomUUID()
+        ));
+
+        mockMvc.perform(
+                        get("/api/v1/wallets/{walletId}/balance",
+                                walletContext.wallet().getId())
+                                .with(com.payledger.platform.shared.security.TestJwtSupport.customerJwt(subject))
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ledgerBalanceMinor").value(12_345))
+                .andExpect(jsonPath("$.heldAmountMinor").value(2_345))
+                .andExpect(jsonPath("$.availableBalanceMinor").value(10_000));
     }
 
     @Test

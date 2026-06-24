@@ -9,7 +9,9 @@ public record WalletBalanceResponse(
         UUID walletId,
         String currency,
         WalletStatus status,
-        long ledgerBalanceMinor
+        long ledgerBalanceMinor,
+        long heldAmountMinor,
+        long availableBalanceMinor
 ) {
     public static WalletBalanceResponse from(
             WalletBalanceSnapshot snapshot
@@ -18,7 +20,9 @@ public record WalletBalanceResponse(
                 snapshot.walletId(),
                 snapshot.currency(),
                 snapshot.status(),
-                snapshot.ledgerBalanceMinor()
+                snapshot.ledgerBalanceMinor(),
+                snapshot.heldAmountMinor(),
+                snapshot.availableBalanceMinor()
         );
     }
 }

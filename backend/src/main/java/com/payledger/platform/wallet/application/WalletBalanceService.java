@@ -1,8 +1,6 @@
 package com.payledger.platform.wallet.application;
 
 import com.payledger.platform.ledger.application.LedgerAccountService;
-import com.payledger.platform.ledger.application.LedgerBalance;
-import com.payledger.platform.ledger.application.LedgerBalanceService;
 import com.payledger.platform.ledger.domain.LedgerAccount;
 import com.payledger.platform.shared.error.ResourceNotFoundException;
 import com.payledger.platform.shared.error.WalletAccessDeniedException;
@@ -18,16 +16,16 @@ public class WalletBalanceService {
 
     private final WalletRepository walletRepository;
     private final LedgerAccountService ledgerAccountService;
-    private final LedgerBalanceService ledgerBalanceService;
+    private final WalletAvailableBalanceService availableBalanceService;
 
     public WalletBalanceService(
             WalletRepository walletRepository,
             LedgerAccountService ledgerAccountService,
-            LedgerBalanceService ledgerBalanceService
+            WalletAvailableBalanceService availableBalanceService
     ) {
         this.walletRepository = walletRepository;
         this.ledgerAccountService = ledgerAccountService;
-        this.ledgerBalanceService = ledgerBalanceService;
+        this.availableBalanceService = availableBalanceService;
     }
 
     @Transactional(readOnly = true)
@@ -43,15 +41,16 @@ public class WalletBalanceService {
                 wallet.getId()
         );
 
-        LedgerBalance ledgerBalance = ledgerBalanceService.calculate(
-                ledgerAccount.getId()
-        );
+        WalletAvailableBalance availableBalance =
+                availableBalanceService.calculate(wallet, ledgerAccount);
 
         return new WalletBalanceSnapshot(
                 wallet.getId(),
                 wallet.getCurrency(),
                 wallet.getStatus(),
-                ledgerBalance.balanceMinor()
+                availableBalance.ledgerBalanceMinor(),
+                availableBalance.heldAmountMinor(),
+                availableBalance.availableBalanceMinor()
         );
     }
 
