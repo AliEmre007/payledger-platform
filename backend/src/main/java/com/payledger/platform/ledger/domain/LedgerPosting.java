@@ -52,11 +52,15 @@ public class LedgerPosting {
             String currency
     ) {
         if (lineNumber <= 0) {
-            throw new IllegalArgumentException("Ledger posting line number must be positive.");
+            throw new IllegalArgumentException(
+                    "Ledger posting line number must be positive."
+            );
         }
 
         if (amountMinor <= 0) {
-            throw new IllegalArgumentException("Ledger posting amount must be positive.");
+            throw new IllegalArgumentException(
+                    "Ledger posting amount must be positive."
+            );
         }
 
         this.id = UUID.randomUUID();
@@ -85,5 +89,33 @@ public class LedgerPosting {
                 amountMinor,
                 currency
         );
+    }
+
+    public UUID getId() {
+        return id;
+    }
+
+    public UUID getJournalEntryId() {
+        return journalEntryId;
+    }
+
+    public UUID getLedgerAccountId() {
+        return ledgerAccountId;
+    }
+
+    public short getLineNumber() {
+        return lineNumber;
+    }
+
+    public PostingDirection getDirection() {
+        return direction;
+    }
+
+    public long getAmountMinor() {
+        return amountMinor;
+    }
+
+    public String getCurrency() {
+        return currency;
     }
 }
