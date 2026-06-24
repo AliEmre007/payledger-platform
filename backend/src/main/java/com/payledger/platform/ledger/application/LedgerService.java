@@ -37,7 +37,7 @@ public class LedgerService {
         validateBalance(command.postings());
         validateAccounts(command);
 
-        JournalEntry journalEntry = journalEntryRepository.save(
+        JournalEntry journalEntry = journalEntryRepository.saveAndFlush(
                 JournalEntry.normal(
                         command.journalType(),
                         command.referenceType(),
