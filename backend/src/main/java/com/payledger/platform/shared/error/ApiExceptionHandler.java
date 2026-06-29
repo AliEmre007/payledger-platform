@@ -92,6 +92,17 @@ public class ApiExceptionHandler {
         );
     }
 
+    @ExceptionHandler(InvalidWebhookSignatureException.class)
+    public ResponseEntity<ApiError> handleInvalidWebhookSignature(
+            InvalidWebhookSignatureException exception
+    ) {
+        return error(
+                HttpStatus.UNAUTHORIZED,
+                "INVALID_WEBHOOK_SIGNATURE",
+                exception.getMessage()
+        );
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiError> handleInvalidArgument(
             IllegalArgumentException exception

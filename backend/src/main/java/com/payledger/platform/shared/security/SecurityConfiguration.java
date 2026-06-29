@@ -40,7 +40,8 @@ public class SecurityConfiguration {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(
                                 "/actuator/health",
-                                "/actuator/health/**"
+                                "/actuator/health/**",
+                                "/api/v1/provider/webhooks"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
