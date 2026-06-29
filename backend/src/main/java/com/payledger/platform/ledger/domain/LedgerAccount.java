@@ -37,6 +37,9 @@ public class LedgerAccount {
     @Column(name = "wallet_id", updatable = false)
     private UUID walletId;
 
+    @Column(name = "merchant_id", updatable = false)
+    private UUID merchantId;
+
     @Column(nullable = false, length = 3, updatable = false)
     private String currency;
 
@@ -54,6 +57,7 @@ public class LedgerAccount {
             NormalBalance normalBalance,
             LedgerAccountOwnerType ownerType,
             UUID walletId,
+            UUID merchantId,
             String currency
     ) {
         this.id = id;
@@ -62,6 +66,7 @@ public class LedgerAccount {
         this.normalBalance = normalBalance;
         this.ownerType = ownerType;
         this.walletId = walletId;
+        this.merchantId = merchantId;
         this.currency = currency;
         this.status = LedgerAccountStatus.ACTIVE;
     }
@@ -81,6 +86,32 @@ public class LedgerAccount {
                 NormalBalance.CREDIT,
                 LedgerAccountOwnerType.CUSTOMER_WALLET,
                 walletId,
+                null,
+                normalizeCurrency(currency)
+        );
+    }
+
+    public static LedgerAccount createForMerchantPayable(
+            UUID merchantId,
+            String currency
+    ) {
+        Objects.requireNonNull(merchantId, "merchantId is required.");
+
+        String accountCode = "MERCHANT_PAYABLE_"
+                + merchantId.toString()
+                .replace("-", "_")
+                .toUpperCase(Locale.ROOT)
+                + "_"
+                + normalizeCurrency(currency);
+
+        return new LedgerAccount(
+                UUID.randomUUID(),
+                accountCode,
+                LedgerAccountType.LIABILITY,
+                NormalBalance.CREDIT,
+                LedgerAccountOwnerType.MERCHANT_PAYABLE,
+                null,
+                merchantId,
                 normalizeCurrency(currency)
         );
     }
@@ -98,6 +129,7 @@ public class LedgerAccount {
                 accountType,
                 normalBalanceFor(accountType),
                 LedgerAccountOwnerType.PLATFORM,
+                null,
                 null,
                 normalizeCurrency(currency)
         );
@@ -166,6 +198,10 @@ public class LedgerAccount {
 
     public UUID getWalletId() {
         return walletId;
+    }
+
+    public UUID getMerchantId() {
+        return merchantId;
     }
 
     public String getCurrency() {

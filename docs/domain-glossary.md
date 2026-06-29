@@ -17,6 +17,20 @@ The product language may call `PENDING` "pending review" and `APPROVED`
 ## Merchant
 A business entity that accepts payments and receives settlement.
 
+Merchant lifecycle states are:
+
+- `PENDING`: onboarded by operations, but not yet eligible to receive payment
+  intents.
+- `ACTIVE`: eligible to receive payment intents in enabled settlement
+  currencies.
+- `SUSPENDED`: temporarily blocked from new payment intents.
+- `CLOSED`: terminal state for a merchant relationship.
+
+Each enabled merchant settlement currency has one `MERCHANT_PAYABLE` liability
+ledger account once the merchant is active. Payment capture will credit this
+account in a later sprint; settlement will debit it when merchant funds are
+moved into the settlement workflow.
+
 ## Wallet
 A customer-facing financial container associated with one or more ledger accounts.
 
@@ -29,6 +43,10 @@ Wallet lifecycle states are:
 
 ## Ledger Account
 An accounting account that records money movement. Examples include customer wallet liability, merchant payable, platform fee revenue, and external clearing accounts.
+
+Merchant payable accounts are owned by a merchant and currency. They are
+liability accounts with a credit normal balance because they represent amounts
+PayLedger owes to the merchant.
 
 ## Journal Entry
 A single financial event containing one or more balanced ledger postings.

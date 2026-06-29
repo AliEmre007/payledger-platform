@@ -14,6 +14,11 @@ public interface LedgerAccountRepository extends JpaRepository<LedgerAccount, UU
 
     Optional<LedgerAccount> findByWalletId(UUID walletId);
 
+    Optional<LedgerAccount> findByMerchantIdAndCurrency(
+            UUID merchantId,
+            String currency
+    );
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             SELECT account

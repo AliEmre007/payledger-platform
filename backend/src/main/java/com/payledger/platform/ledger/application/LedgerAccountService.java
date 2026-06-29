@@ -40,4 +40,32 @@ public class LedgerAccountService {
                         "Ledger account not found for wallet: " + walletId
                 ));
     }
+
+    @Transactional
+    public LedgerAccount createForMerchantPayable(
+            UUID merchantId,
+            String currency
+    ) {
+        return ledgerAccountRepository
+                .findByMerchantIdAndCurrency(merchantId, currency)
+                .orElseGet(() -> ledgerAccountRepository.saveAndFlush(
+                        LedgerAccount.createForMerchantPayable(
+                                merchantId,
+                                currency
+                        )
+                ));
+    }
+
+    @Transactional(readOnly = true)
+    public LedgerAccount getForMerchantPayable(
+            UUID merchantId,
+            String currency
+    ) {
+        return ledgerAccountRepository
+                .findByMerchantIdAndCurrency(merchantId, currency)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Ledger account not found for merchant payable: "
+                                + merchantId
+                ));
+    }
 }
