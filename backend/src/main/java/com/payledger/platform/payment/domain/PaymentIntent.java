@@ -1,6 +1,7 @@
 package com.payledger.platform.payment.domain;
 
 import com.payledger.platform.shared.error.BusinessRuleViolationException;
+import com.payledger.platform.shared.error.IdempotencyConflictException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -32,6 +33,12 @@ public class PaymentIntent {
     @Column(name = "funds_hold_id")
     private UUID fundsHoldId;
 
+    @Column(name = "capture_journal_entry_id")
+    private UUID captureJournalEntryId;
+
+    @Column(name = "refund_journal_entry_id")
+    private UUID refundJournalEntryId;
+
     @Column(name = "amount_minor", nullable = false, updatable = false)
     private long amountMinor;
 
@@ -47,6 +54,12 @@ public class PaymentIntent {
 
     @Column(name = "request_fingerprint", nullable = false, length = 64, updatable = false)
     private String requestFingerprint;
+
+    @Column(name = "capture_idempotency_key", length = 255)
+    private String captureIdempotencyKey;
+
+    @Column(name = "refund_idempotency_key", length = 255)
+    private String refundIdempotencyKey;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -65,6 +78,9 @@ public class PaymentIntent {
 
     @Column(name = "failed_at")
     private Instant failedAt;
+
+    @Column(name = "refunded_at")
+    private Instant refundedAt;
 
     @Version
     @Column(nullable = false)
@@ -147,6 +163,78 @@ public class PaymentIntent {
         return true;
     }
 
+    public boolean capture(
+            UUID journalEntryId,
+            String idempotencyKey
+    ) {
+        if (status == PaymentIntentStatus.CAPTURED) {
+            if (!captureIdempotencyKey.equals(idempotencyKey)) {
+                throw new IdempotencyConflictException(
+                        "The capture idempotency key does not match the completed capture."
+                );
+            }
+
+            return false;
+        }
+
+        if (status != PaymentIntentStatus.AUTHORIZED) {
+            throw new BusinessRuleViolationException(
+                    "PAYMENT_INTENT_INVALID_TRANSITION",
+                    "Only AUTHORIZED payment intents can be captured."
+            );
+        }
+
+        this.captureJournalEntryId = journalEntryId;
+        this.captureIdempotencyKey = normalizeIdempotencyKey(idempotencyKey);
+        this.status = PaymentIntentStatus.CAPTURED;
+        this.capturedAt = Instant.now();
+        return true;
+    }
+
+    public boolean refund(
+            UUID journalEntryId,
+            String idempotencyKey
+    ) {
+        if (status == PaymentIntentStatus.REFUNDED) {
+            if (!refundIdempotencyKey.equals(idempotencyKey)) {
+                throw new IdempotencyConflictException(
+                        "The refund idempotency key does not match the completed refund."
+                );
+            }
+
+            return false;
+        }
+
+        if (status != PaymentIntentStatus.CAPTURED) {
+            throw new BusinessRuleViolationException(
+                    "PAYMENT_INTENT_INVALID_TRANSITION",
+                    "Only CAPTURED payment intents can be refunded."
+            );
+        }
+
+        this.refundJournalEntryId = journalEntryId;
+        this.refundIdempotencyKey = normalizeIdempotencyKey(idempotencyKey);
+        this.status = PaymentIntentStatus.REFUNDED;
+        this.refundedAt = Instant.now();
+        return true;
+    }
+
+    private String normalizeIdempotencyKey(String idempotencyKey) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            throw new IllegalArgumentException("idempotencyKey is required.");
+        }
+
+        String normalized = idempotencyKey.trim();
+
+        if (normalized.length() > 255) {
+            throw new IllegalArgumentException(
+                    "idempotencyKey must not exceed 255 characters."
+            );
+        }
+
+        return normalized;
+    }
+
     public UUID getId() {
         return id;
     }
@@ -165,6 +253,14 @@ public class PaymentIntent {
 
     public UUID getFundsHoldId() {
         return fundsHoldId;
+    }
+
+    public UUID getCaptureJournalEntryId() {
+        return captureJournalEntryId;
+    }
+
+    public UUID getRefundJournalEntryId() {
+        return refundJournalEntryId;
     }
 
     public long getAmountMinor() {
@@ -197,5 +293,13 @@ public class PaymentIntent {
 
     public Instant getCanceledAt() {
         return canceledAt;
+    }
+
+    public Instant getCapturedAt() {
+        return capturedAt;
+    }
+
+    public Instant getRefundedAt() {
+        return refundedAt;
     }
 }

@@ -60,6 +60,11 @@ Payment-intent authorization reserves available wallet funds with a funds hold.
 It does not create a ledger journal or posting until a later capture workflow.
 The merchant must be `ACTIVE` and enabled for the payment currency.
 
+Payment capture and refund are operations-only workflows until a merchant-auth
+surface exists. Both require an `Idempotency-Key` header. Capture consumes the
+active hold and creates the payment ledger journal. Refund creates a separate
+compensating journal and never edits the capture journal.
+
 ## Operations APIs
 
 Operations APIs use:

@@ -6,5 +6,6 @@ public enum PaymentIntentStatus {
     CAPTURED,
     CANCELED,
     EXPIRED,
-    FAILED
+    FAILED,
+    REFUNDED
 }

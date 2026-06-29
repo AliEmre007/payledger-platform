@@ -2,14 +2,16 @@
 
 ## State Machine
 
-SPRINT-12 implements authorization and customer cancellation only.
+SPRINT-13 implements capture and refund on top of authorization and customer
+cancellation.
 
 ```text
 CREATED -> AUTHORIZED
 AUTHORIZED -> CANCELED
+AUTHORIZED -> CAPTURED
+CAPTURED -> REFUNDED
 
 Future sprints:
-AUTHORIZED -> CAPTURED
 AUTHORIZED -> EXPIRED
 AUTHORIZED -> FAILED
 ```
@@ -20,6 +22,11 @@ created. Failed authorization does not persist a payment intent.
 
 `AUTHORIZED` means customer funds are reserved by an `ACTIVE` funds hold. It is
 not a ledger posting and does not move money.
+
+`CAPTURED` consumes the active hold and posts the payment ledger journal.
+
+`REFUNDED` posts a separate compensating journal. It never edits or deletes the
+original capture journal.
 
 `CANCELED` releases the active hold. Repeating cancellation for an already
 canceled payment intent returns the canceled intent without emitting duplicate
@@ -72,3 +79,70 @@ Rules:
 - Cancellation releases the active hold.
 - Repeating cancellation is safe and returns the existing canceled intent.
 - Cancellation emits audit and outbox records only for the first transition.
+
+## Capture API
+
+```text
+POST /api/v1/operations/payment-intents/{paymentIntentId}/capture
+Idempotency-Key: <operator-generated key>
+Authorization: Bearer <operations JWT>
+```
+
+Rules:
+
+- Only operations users can capture until a merchant-auth surface exists.
+- Only `AUTHORIZED` payment intents can be captured.
+- Capture consumes the active funds hold.
+- Capture emits audit and outbox records.
+- Repeating capture with the same idempotency key returns the captured payment
+  intent without duplicate side effects.
+
+Capture creates one balanced journal:
+
+```text
+Debit   CUSTOMER_WALLET liability
+Credit  MERCHANT_PAYABLE liability
+```
+
+Example, for a 25.00 TRY capture:
+
+```text
+Debit   customer wallet liability     2500 TRY
+Credit  merchant payable liability    2500 TRY
+```
+
+This lowers the customer's ledger-derived wallet balance and increases the
+merchant payable balance by the same amount.
+
+## Refund API
+
+```text
+POST /api/v1/operations/payment-intents/{paymentIntentId}/refund
+Idempotency-Key: <operator-generated key>
+Authorization: Bearer <operations JWT>
+```
+
+Rules:
+
+- Only operations users can refund until a merchant-auth surface exists.
+- Only `CAPTURED` payment intents can be refunded.
+- Refund emits audit and outbox records.
+- Repeating refund with the same idempotency key returns the refunded payment
+  intent without duplicate side effects.
+
+Refund creates a new balanced journal. It does not modify the capture journal:
+
+```text
+Debit   MERCHANT_PAYABLE liability
+Credit  CUSTOMER_WALLET liability
+```
+
+Example, for a 25.00 TRY refund:
+
+```text
+Debit   merchant payable liability    2500 TRY
+Credit  customer wallet liability     2500 TRY
+```
+
+This restores the customer's ledger-derived wallet balance and reduces the
+merchant payable balance by the same amount.

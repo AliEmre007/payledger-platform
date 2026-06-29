@@ -7,6 +7,7 @@ import com.payledger.platform.customer.domain.CustomerType;
 import com.payledger.platform.identity.application.CustomerIdentityService;
 import com.payledger.platform.kyc.application.KycOperationsService;
 import com.payledger.platform.ledger.application.LedgerPostingCommand;
+import com.payledger.platform.ledger.application.LedgerBalanceService;
 import com.payledger.platform.ledger.application.LedgerService;
 import com.payledger.platform.ledger.application.PostJournalEntryCommand;
 import com.payledger.platform.ledger.domain.LedgerAccount;
@@ -74,6 +75,9 @@ class PaymentIntentIntegrationTest extends PostgresIntegrationTest {
 
     @Autowired
     private LedgerService ledgerService;
+
+    @Autowired
+    private LedgerBalanceService ledgerBalanceService;
 
     @Autowired
     private MerchantService merchantService;
@@ -406,6 +410,206 @@ class PaymentIntentIntegrationTest extends PostgresIntegrationTest {
                 paymentIntentId)).isOne();
     }
 
+    @Test
+    void captureChangesLedgerBalancesExactlyOnce() throws Exception {
+        WalletContext walletContext = createApprovedWallet("capture", "TRY");
+        String subject = linkSubject(walletContext.customer());
+        MerchantDetails merchant = createActiveMerchant("capture", "TRY");
+        topUp(walletContext.ledgerAccount(), 10_000, "TRY");
+
+        UUID paymentIntentId = authorizePayment(
+                walletContext,
+                merchant,
+                subject,
+                2_500,
+                "payment-capture-auth-" + UUID.randomUUID()
+        ).id();
+        String captureKey = "payment-capture-" + UUID.randomUUID();
+
+        mockMvc.perform(
+                        post(
+                                "/api/v1/operations/payment-intents/{paymentIntentId}/capture",
+                                paymentIntentId
+                        )
+                                .header("Idempotency-Key", captureKey)
+                                .with(com.payledger.platform.shared.security.TestJwtSupport.operationsJwt(
+                                        "payment-capture-ops-" + UUID.randomUUID()
+                                ))
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status")
+                        .value(PaymentIntentStatus.CAPTURED.name()))
+                .andExpect(jsonPath("$.captureJournalEntryId").isNotEmpty());
+
+        mockMvc.perform(
+                        post(
+                                "/api/v1/operations/payment-intents/{paymentIntentId}/capture",
+                                paymentIntentId
+                        )
+                                .header("Idempotency-Key", captureKey)
+                                .with(com.payledger.platform.shared.security.TestJwtSupport.operationsJwt(
+                                        "payment-capture-ops-" + UUID.randomUUID()
+                                ))
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status")
+                        .value(PaymentIntentStatus.CAPTURED.name()));
+
+        LedgerAccount merchantPayable = ledgerAccountRepository
+                .findByMerchantIdAndCurrency(merchant.id(), "TRY")
+                .orElseThrow();
+
+        assertThat(ledgerBalanceService.calculate(
+                walletContext.ledgerAccount().getId()
+        ).balanceMinor()).isEqualTo(7_500);
+        assertThat(ledgerBalanceService.calculate(
+                merchantPayable.getId()
+        ).balanceMinor()).isEqualTo(2_500);
+        assertThat(countFundsHolds(paymentIntentId, FundsHoldStatus.CAPTURED))
+                .isOne();
+        assertThat(countJournalEntries(
+                "PAYMENT_CAPTURE",
+                paymentIntentId
+        )).isOne();
+        assertThat(countAuditEvents("PAYMENT_INTENT_CAPTURED",
+                paymentIntentId)).isOne();
+        assertThat(countOutboxEvents("PAYMENT_INTENT_CAPTURED",
+                paymentIntentId)).isOne();
+    }
+
+    @Test
+    void captureAfterCancellationIsRejectedWithoutLedgerMovement()
+            throws Exception {
+        WalletContext walletContext = createApprovedWallet(
+                "capture-after-cancel",
+                "TRY"
+        );
+        String subject = linkSubject(walletContext.customer());
+        MerchantDetails merchant = createActiveMerchant(
+                "capture-after-cancel",
+                "TRY"
+        );
+        topUp(walletContext.ledgerAccount(), 10_000, "TRY");
+
+        UUID paymentIntentId = authorizePayment(
+                walletContext,
+                merchant,
+                subject,
+                2_000,
+                "payment-cancel-before-capture-" + UUID.randomUUID()
+        ).id();
+
+        mockMvc.perform(
+                        post(
+                                "/api/v1/payment-intents/{paymentIntentId}/cancel",
+                                paymentIntentId
+                        )
+                                .with(com.payledger.platform.shared.security.TestJwtSupport.customerJwt(subject))
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status")
+                        .value(PaymentIntentStatus.CANCELED.name()));
+
+        mockMvc.perform(
+                        post(
+                                "/api/v1/operations/payment-intents/{paymentIntentId}/capture",
+                                paymentIntentId
+                        )
+                                .header(
+                                        "Idempotency-Key",
+                                        "capture-canceled-" + UUID.randomUUID()
+                                )
+                                .with(com.payledger.platform.shared.security.TestJwtSupport.operationsJwt(
+                                        "payment-capture-canceled-ops-" + UUID.randomUUID()
+                                ))
+                )
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code")
+                        .value("PAYMENT_INTENT_INVALID_TRANSITION"));
+
+        assertThat(ledgerBalanceService.calculate(
+                walletContext.ledgerAccount().getId()
+        ).balanceMinor()).isEqualTo(10_000);
+        assertThat(countFundsHolds(paymentIntentId, FundsHoldStatus.RELEASED))
+                .isOne();
+        assertThat(countJournalEntries(
+                "PAYMENT_CAPTURE",
+                paymentIntentId
+        )).isZero();
+    }
+
+    @Test
+    void refundProducesCompensatingJournalAndIsIdempotent()
+            throws Exception {
+        WalletContext walletContext = createApprovedWallet("refund", "TRY");
+        String subject = linkSubject(walletContext.customer());
+        MerchantDetails merchant = createActiveMerchant("refund", "TRY");
+        topUp(walletContext.ledgerAccount(), 10_000, "TRY");
+
+        UUID paymentIntentId = authorizePayment(
+                walletContext,
+                merchant,
+                subject,
+                4_000,
+                "payment-refund-auth-" + UUID.randomUUID()
+        ).id();
+        capturePayment(paymentIntentId, "payment-refund-capture-"
+                + UUID.randomUUID());
+        String refundKey = "payment-refund-" + UUID.randomUUID();
+
+        mockMvc.perform(
+                        post(
+                                "/api/v1/operations/payment-intents/{paymentIntentId}/refund",
+                                paymentIntentId
+                        )
+                                .header("Idempotency-Key", refundKey)
+                                .with(com.payledger.platform.shared.security.TestJwtSupport.operationsJwt(
+                                        "payment-refund-ops-" + UUID.randomUUID()
+                                ))
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status")
+                        .value(PaymentIntentStatus.REFUNDED.name()))
+                .andExpect(jsonPath("$.refundJournalEntryId").isNotEmpty());
+
+        mockMvc.perform(
+                        post(
+                                "/api/v1/operations/payment-intents/{paymentIntentId}/refund",
+                                paymentIntentId
+                        )
+                                .header("Idempotency-Key", refundKey)
+                                .with(com.payledger.platform.shared.security.TestJwtSupport.operationsJwt(
+                                        "payment-refund-ops-" + UUID.randomUUID()
+                                ))
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status")
+                        .value(PaymentIntentStatus.REFUNDED.name()));
+
+        LedgerAccount merchantPayable = ledgerAccountRepository
+                .findByMerchantIdAndCurrency(merchant.id(), "TRY")
+                .orElseThrow();
+
+        assertThat(ledgerBalanceService.calculate(
+                walletContext.ledgerAccount().getId()
+        ).balanceMinor()).isEqualTo(10_000);
+        assertThat(ledgerBalanceService.calculate(
+                merchantPayable.getId()
+        ).balanceMinor()).isZero();
+        assertThat(countJournalEntries(
+                "PAYMENT_CAPTURE",
+                paymentIntentId
+        )).isOne();
+        assertThat(countJournalEntries(
+                "PAYMENT_REFUND",
+                paymentIntentId
+        )).isOne();
+        assertThat(countAuditEvents("PAYMENT_INTENT_REFUNDED",
+                paymentIntentId)).isOne();
+        assertThat(countOutboxEvents("PAYMENT_INTENT_REFUNDED",
+                paymentIntentId)).isOne();
+    }
+
     private WalletContext createApprovedWallet(String label, String currency) {
         WalletContext walletContext = createUnverifiedWallet(label, currency);
         approveKyc(walletContext.customer());
@@ -508,6 +712,54 @@ class PaymentIntentIntegrationTest extends PostgresIntegrationTest {
         );
     }
 
+    private PaymentIntentResponse authorizePayment(
+            WalletContext walletContext,
+            MerchantDetails merchant,
+            String subject,
+            long amountMinor,
+            String idempotencyKey
+    ) throws Exception {
+        CreatePaymentIntentRequest request = new CreatePaymentIntentRequest(
+                walletContext.wallet().getId(),
+                merchant.id(),
+                amountMinor,
+                walletContext.wallet().getCurrency()
+        );
+
+        String response = mockMvc.perform(
+                        post("/api/v1/payment-intents")
+                                .header("Idempotency-Key", idempotencyKey)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request))
+                                .with(com.payledger.platform.shared.security.TestJwtSupport.customerJwt(subject))
+                )
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        return objectMapper.readValue(response, PaymentIntentResponse.class);
+    }
+
+    private void capturePayment(
+            UUID paymentIntentId,
+            String idempotencyKey
+    ) throws Exception {
+        mockMvc.perform(
+                        post(
+                                "/api/v1/operations/payment-intents/{paymentIntentId}/capture",
+                                paymentIntentId
+                        )
+                                .header("Idempotency-Key", idempotencyKey)
+                                .with(com.payledger.platform.shared.security.TestJwtSupport.operationsJwt(
+                                        "payment-capture-helper-ops-" + UUID.randomUUID()
+                                ))
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status")
+                        .value(PaymentIntentStatus.CAPTURED.name()));
+    }
+
     private LedgerAccount createPlatformCashAccount(String currency) {
         String suffix = UUID.randomUUID()
                 .toString()
@@ -551,6 +803,24 @@ class PaymentIntentIntegrationTest extends PostgresIntegrationTest {
                           AND reference_id = ?
                         """,
                 Long.class,
+                paymentIntentId
+        );
+    }
+
+    private long countJournalEntries(
+            String journalType,
+            UUID paymentIntentId
+    ) {
+        return jdbcTemplate.queryForObject(
+                """
+                        SELECT count(*)
+                        FROM journal_entries
+                        WHERE journal_type = ?
+                          AND reference_type = 'PAYMENT_INTENT'
+                          AND reference_id = ?
+                        """,
+                Long.class,
+                journalType,
                 paymentIntentId
         );
     }

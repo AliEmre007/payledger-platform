@@ -5,10 +5,18 @@ import com.payledger.platform.audit.application.AuditEventService;
 import com.payledger.platform.customer.domain.Customer;
 import com.payledger.platform.customer.domain.KycStatus;
 import com.payledger.platform.customer.infrastructure.CustomerRepository;
+import com.payledger.platform.ledger.application.LedgerAccountService;
+import com.payledger.platform.ledger.application.LedgerPostingCommand;
+import com.payledger.platform.ledger.application.LedgerService;
+import com.payledger.platform.ledger.application.PostJournalEntryCommand;
+import com.payledger.platform.ledger.domain.JournalEntry;
+import com.payledger.platform.ledger.domain.LedgerAccount;
+import com.payledger.platform.ledger.domain.PostingDirection;
 import com.payledger.platform.merchant.application.MerchantService;
 import com.payledger.platform.outbox.application.OutboxEventCommand;
 import com.payledger.platform.outbox.application.OutboxEventService;
 import com.payledger.platform.payment.domain.PaymentIntent;
+import com.payledger.platform.payment.domain.PaymentIntentStatus;
 import com.payledger.platform.payment.infrastructure.PaymentIntentRepository;
 import com.payledger.platform.risk.application.PaymentAuthorizationRiskRequest;
 import com.payledger.platform.risk.application.RiskDecision;
@@ -26,6 +34,8 @@ import com.payledger.platform.wallet.infrastructure.WalletRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -39,6 +49,8 @@ public class PaymentIntentService {
     private final CustomerRepository customerRepository;
     private final MerchantService merchantService;
     private final FundsHoldService fundsHoldService;
+    private final LedgerAccountService ledgerAccountService;
+    private final LedgerService ledgerService;
     private final RiskDecisionService riskDecisionService;
     private final AuditEventService auditEventService;
     private final OutboxEventService outboxEventService;
@@ -49,6 +61,8 @@ public class PaymentIntentService {
             CustomerRepository customerRepository,
             MerchantService merchantService,
             FundsHoldService fundsHoldService,
+            LedgerAccountService ledgerAccountService,
+            LedgerService ledgerService,
             RiskDecisionService riskDecisionService,
             AuditEventService auditEventService,
             OutboxEventService outboxEventService
@@ -58,9 +72,153 @@ public class PaymentIntentService {
         this.customerRepository = customerRepository;
         this.merchantService = merchantService;
         this.fundsHoldService = fundsHoldService;
+        this.ledgerAccountService = ledgerAccountService;
+        this.ledgerService = ledgerService;
         this.riskDecisionService = riskDecisionService;
         this.auditEventService = auditEventService;
         this.outboxEventService = outboxEventService;
+    }
+
+    @Transactional
+    public PaymentIntent capture(
+            UUID paymentIntentId,
+            String idempotencyKey,
+            String actorExternalSubject
+    ) {
+        PaymentIntent paymentIntent = getPaymentIntentForUpdate(
+                paymentIntentId
+        );
+
+        if (paymentIntent.getStatus() == PaymentIntentStatus.CAPTURED) {
+            paymentIntent.capture(
+                    paymentIntent.getCaptureJournalEntryId(),
+                    idempotencyKey
+            );
+            return paymentIntent;
+        }
+
+        if (paymentIntent.getStatus() != PaymentIntentStatus.AUTHORIZED) {
+            paymentIntent.capture(UUID.randomUUID(), idempotencyKey);
+        }
+
+        fundsHoldService.capture(paymentIntent.getFundsHoldId());
+
+        LedgerAccount customerWalletAccount =
+                ledgerAccountService.getForWallet(
+                        paymentIntent.getSourceWalletId()
+                );
+        LedgerAccount merchantPayableAccount =
+                ledgerAccountService.getForMerchantPayable(
+                        paymentIntent.getMerchantId(),
+                        paymentIntent.getCurrency()
+                );
+
+        JournalEntry journalEntry = ledgerService.post(
+                new PostJournalEntryCommand(
+                        "PAYMENT_CAPTURE",
+                        REFERENCE_TYPE,
+                        paymentIntent.getId(),
+                        paymentIntent.getCurrency(),
+                        "Capture authorized wallet payment.",
+                        Instant.now(),
+                        List.of(
+                                new LedgerPostingCommand(
+                                        customerWalletAccount.getId(),
+                                        PostingDirection.DEBIT,
+                                        paymentIntent.getAmountMinor()
+                                ),
+                                new LedgerPostingCommand(
+                                        merchantPayableAccount.getId(),
+                                        PostingDirection.CREDIT,
+                                        paymentIntent.getAmountMinor()
+                                )
+                        )
+                )
+        );
+
+        paymentIntent.capture(journalEntry.getId(), idempotencyKey);
+        PaymentIntent saved = paymentIntentRepository.saveAndFlush(
+                paymentIntent
+        );
+
+        emitMutation(
+                "PAYMENT_INTENT_CAPTURED",
+                saved,
+                actorExternalSubject,
+                saved.getCustomerId()
+        );
+
+        return saved;
+    }
+
+    @Transactional
+    public PaymentIntent refund(
+            UUID paymentIntentId,
+            String idempotencyKey,
+            String actorExternalSubject
+    ) {
+        PaymentIntent paymentIntent = getPaymentIntentForUpdate(
+                paymentIntentId
+        );
+
+        if (paymentIntent.getStatus() == PaymentIntentStatus.REFUNDED) {
+            paymentIntent.refund(
+                    paymentIntent.getRefundJournalEntryId(),
+                    idempotencyKey
+            );
+            return paymentIntent;
+        }
+
+        if (paymentIntent.getStatus() != PaymentIntentStatus.CAPTURED) {
+            paymentIntent.refund(UUID.randomUUID(), idempotencyKey);
+        }
+
+        LedgerAccount customerWalletAccount =
+                ledgerAccountService.getForWallet(
+                        paymentIntent.getSourceWalletId()
+                );
+        LedgerAccount merchantPayableAccount =
+                ledgerAccountService.getForMerchantPayable(
+                        paymentIntent.getMerchantId(),
+                        paymentIntent.getCurrency()
+                );
+
+        JournalEntry journalEntry = ledgerService.post(
+                new PostJournalEntryCommand(
+                        "PAYMENT_REFUND",
+                        REFERENCE_TYPE,
+                        paymentIntent.getId(),
+                        paymentIntent.getCurrency(),
+                        "Refund captured wallet payment.",
+                        Instant.now(),
+                        List.of(
+                                new LedgerPostingCommand(
+                                        merchantPayableAccount.getId(),
+                                        PostingDirection.DEBIT,
+                                        paymentIntent.getAmountMinor()
+                                ),
+                                new LedgerPostingCommand(
+                                        customerWalletAccount.getId(),
+                                        PostingDirection.CREDIT,
+                                        paymentIntent.getAmountMinor()
+                                )
+                        )
+                )
+        );
+
+        paymentIntent.refund(journalEntry.getId(), idempotencyKey);
+        PaymentIntent saved = paymentIntentRepository.saveAndFlush(
+                paymentIntent
+        );
+
+        emitMutation(
+                "PAYMENT_INTENT_REFUNDED",
+                saved,
+                actorExternalSubject,
+                saved.getCustomerId()
+        );
+
+        return saved;
     }
 
     @Transactional
@@ -160,6 +318,13 @@ public class PaymentIntentService {
         );
 
         return saved;
+    }
+
+    private PaymentIntent getPaymentIntentForUpdate(UUID paymentIntentId) {
+        return paymentIntentRepository.findByIdForUpdate(paymentIntentId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Payment intent not found: " + paymentIntentId
+                ));
     }
 
     private PaymentIntent replayOrReject(
