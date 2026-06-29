@@ -40,15 +40,25 @@ wallet:
 GET /api/v1/wallets/{walletId}/balance
 GET /api/v1/wallets/{walletId}/statement
 POST /api/v1/transfers
+POST /api/v1/payment-intents
 
 For transfers, the source wallet must belong to the JWT-linked customer. The
 destination wallet is an explicit transfer target, but source-wallet ownership
 is always enforced server-side.
 
-Customer-initiated money movement requires both the source and destination
-customers to have approved KYC. Stored status `APPROVED` means verified.
+Customer-initiated money movement requires approved KYC. Stored status
+`APPROVED` means verified. Transfers require both source and destination
+customers to be approved. Payment-intent authorization requires the paying
+customer to be approved.
+
 Transfers require both wallets to be `ACTIVE`; frozen and closed wallets are
-rejected with business-rule errors.
+rejected with business-rule errors. Payment-intent authorization requires the
+source wallet to be `ACTIVE`, owned by the authenticated customer, and in the
+same currency as the payment.
+
+Payment-intent authorization reserves available wallet funds with a funds hold.
+It does not create a ledger journal or posting until a later capture workflow.
+The merchant must be `ACTIVE` and enabled for the payment currency.
 
 ## Operations APIs
 
