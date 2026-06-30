@@ -5,6 +5,8 @@ import com.payledger.platform.audit.application.AuditEventService;
 import com.payledger.platform.ledger.application.LedgerAccountService;
 import com.payledger.platform.ledger.application.LedgerBalanceService;
 import com.payledger.platform.ledger.domain.LedgerAccount;
+import com.payledger.platform.outbox.application.OutboxEventCommand;
+import com.payledger.platform.outbox.application.OutboxEventService;
 import com.payledger.platform.shared.error.BusinessRuleViolationException;
 import com.payledger.platform.shared.error.ResourceNotFoundException;
 import com.payledger.platform.wallet.domain.Wallet;
@@ -25,19 +27,22 @@ public class WalletLifecycleService {
     private final LedgerBalanceService ledgerBalanceService;
     private final JdbcTemplate jdbcTemplate;
     private final AuditEventService auditEventService;
+    private final OutboxEventService outboxEventService;
 
     public WalletLifecycleService(
             WalletRepository walletRepository,
             LedgerAccountService ledgerAccountService,
             LedgerBalanceService ledgerBalanceService,
             JdbcTemplate jdbcTemplate,
-            AuditEventService auditEventService
+            AuditEventService auditEventService,
+            OutboxEventService outboxEventService
     ) {
         this.walletRepository = walletRepository;
         this.ledgerAccountService = ledgerAccountService;
         this.ledgerBalanceService = ledgerBalanceService;
         this.jdbcTemplate = jdbcTemplate;
         this.auditEventService = auditEventService;
+        this.outboxEventService = outboxEventService;
     }
 
     @Transactional
@@ -194,6 +199,22 @@ public class WalletLifecycleService {
                         )
                 )
         );
+
+        if ("WALLET_FROZEN".equals(actionType)) {
+            outboxEventService.enqueue(
+                    new OutboxEventCommand(
+                            actionType,
+                            "WALLET",
+                            wallet.getId(),
+                            Map.of(
+                                    "walletId", wallet.getId().toString(),
+                                    "customerId", wallet.getCustomerId().toString(),
+                                    "fromStatus", fromStatus.name(),
+                                    "toStatus", toStatus.name()
+                            )
+                    )
+            );
+        }
     }
 
     private String normalizeActor(String actorExternalSubject) {

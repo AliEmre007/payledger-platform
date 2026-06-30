@@ -5,6 +5,8 @@ import com.payledger.platform.audit.application.AuditEventService;
 import com.payledger.platform.customer.domain.Customer;
 import com.payledger.platform.customer.domain.KycStatus;
 import com.payledger.platform.customer.infrastructure.CustomerRepository;
+import com.payledger.platform.outbox.application.OutboxEventCommand;
+import com.payledger.platform.outbox.application.OutboxEventService;
 import com.payledger.platform.shared.error.BusinessRuleViolationException;
 import com.payledger.platform.shared.error.ResourceNotFoundException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -20,15 +22,18 @@ public class KycOperationsService {
     private final CustomerRepository customerRepository;
     private final JdbcTemplate jdbcTemplate;
     private final AuditEventService auditEventService;
+    private final OutboxEventService outboxEventService;
 
     public KycOperationsService(
             CustomerRepository customerRepository,
             JdbcTemplate jdbcTemplate,
-            AuditEventService auditEventService
+            AuditEventService auditEventService,
+            OutboxEventService outboxEventService
     ) {
         this.customerRepository = customerRepository;
         this.jdbcTemplate = jdbcTemplate;
         this.auditEventService = auditEventService;
+        this.outboxEventService = outboxEventService;
     }
 
     @Transactional
@@ -172,6 +177,22 @@ public class KycOperationsService {
                         )
                 )
         );
+
+        if ("KYC_APPROVED".equals(actionType)
+                || "KYC_REJECTED".equals(actionType)) {
+            outboxEventService.enqueue(
+                    new OutboxEventCommand(
+                            actionType,
+                            "CUSTOMER",
+                            customer.getId(),
+                            Map.of(
+                                    "customerId", customer.getId().toString(),
+                                    "fromStatus", fromStatus.name(),
+                                    "toStatus", toStatus.name()
+                            )
+                    )
+            );
+        }
     }
 
     private String normalizeActor(String actorExternalSubject) {

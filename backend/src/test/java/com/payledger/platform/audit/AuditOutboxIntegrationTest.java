@@ -195,12 +195,12 @@ class AuditOutboxIntegrationTest extends PostgresIntegrationTest {
 
         assertThatThrownBy(() ->
                 jdbcTemplate.update(
-                        "UPDATE outbox_events SET status = 'PENDING' WHERE id = ?",
+                        "UPDATE outbox_events SET payload = '{}'::jsonb WHERE id = ?",
                         outboxRowId
                 )
         )
                 .isInstanceOf(DataAccessException.class)
-                .hasMessageContaining("append-only");
+                .hasMessageContaining("immutable fields");
 
         assertThatThrownBy(() ->
                 jdbcTemplate.update(
