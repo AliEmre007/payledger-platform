@@ -146,7 +146,8 @@ public class ProviderWebhookService {
         paymentIntentService.capture(
                 providerTransaction.getPaymentIntentId(),
                 "provider-capture-" + request.eventId(),
-                "fake-provider-webhook"
+                "fake-provider-webhook",
+                "Capture requested by signed fake-provider webhook."
         );
 
         return insertWebhookEvent(

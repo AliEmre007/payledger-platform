@@ -83,7 +83,8 @@ public class PaymentIntentService {
     public PaymentIntent capture(
             UUID paymentIntentId,
             String idempotencyKey,
-            String actorExternalSubject
+            String actorExternalSubject,
+            String reason
     ) {
         PaymentIntent paymentIntent = getPaymentIntentForUpdate(
                 paymentIntentId
@@ -145,7 +146,8 @@ public class PaymentIntentService {
                 "PAYMENT_INTENT_CAPTURED",
                 saved,
                 actorExternalSubject,
-                saved.getCustomerId()
+                saved.getCustomerId(),
+                reason
         );
 
         return saved;
@@ -155,7 +157,8 @@ public class PaymentIntentService {
     public PaymentIntent refund(
             UUID paymentIntentId,
             String idempotencyKey,
-            String actorExternalSubject
+            String actorExternalSubject,
+            String reason
     ) {
         PaymentIntent paymentIntent = getPaymentIntentForUpdate(
                 paymentIntentId
@@ -215,7 +218,8 @@ public class PaymentIntentService {
                 "PAYMENT_INTENT_REFUNDED",
                 saved,
                 actorExternalSubject,
-                saved.getCustomerId()
+                saved.getCustomerId(),
+                reason
         );
 
         return saved;
@@ -411,13 +415,24 @@ public class PaymentIntentService {
             String externalSubject,
             UUID customerId
     ) {
+        emitMutation(eventType, paymentIntent, externalSubject, customerId, null);
+    }
+
+    private void emitMutation(
+            String eventType,
+            PaymentIntent paymentIntent,
+            String externalSubject,
+            UUID customerId,
+            String reason
+    ) {
         Map<String, Object> metadata = Map.of(
                 "paymentIntentId", paymentIntent.getId().toString(),
                 "sourceWalletId", paymentIntent.getSourceWalletId().toString(),
                 "merchantId", paymentIntent.getMerchantId().toString(),
                 "amountMinor", paymentIntent.getAmountMinor(),
                 "currency", paymentIntent.getCurrency(),
-                "status", paymentIntent.getStatus().name()
+                "status", paymentIntent.getStatus().name(),
+                "reason", reason == null ? "" : reason.trim()
         );
 
         auditEventService.record(

@@ -17,7 +17,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/operations/customers")
-@PreAuthorize("hasRole('OPERATIONS')")
+@PreAuthorize("hasAnyRole('OPERATIONS', 'ADMIN')")
 public class OperationsCustomerController {
 
     private final KycOperationsService kycOperationsService;

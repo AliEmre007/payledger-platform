@@ -17,6 +17,7 @@ import com.payledger.platform.ledger.infrastructure.LedgerAccountRepository;
 import com.payledger.platform.merchant.application.MerchantDetails;
 import com.payledger.platform.merchant.application.MerchantService;
 import com.payledger.platform.merchant.application.OnboardMerchantCommand;
+import com.payledger.platform.operations.api.OperationReasonRequest;
 import com.payledger.platform.payment.api.CreatePaymentIntentRequest;
 import com.payledger.platform.payment.api.PaymentIntentResponse;
 import com.payledger.platform.payment.domain.PaymentIntentStatus;
@@ -432,6 +433,8 @@ class PaymentIntentIntegrationTest extends PostgresIntegrationTest {
                                 paymentIntentId
                         )
                                 .header("Idempotency-Key", captureKey)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(operationReason("Capture payment."))
                                 .with(com.payledger.platform.shared.security.TestJwtSupport.operationsJwt(
                                         "payment-capture-ops-" + UUID.randomUUID()
                                 ))
@@ -447,6 +450,8 @@ class PaymentIntentIntegrationTest extends PostgresIntegrationTest {
                                 paymentIntentId
                         )
                                 .header("Idempotency-Key", captureKey)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(operationReason("Replay capture."))
                                 .with(com.payledger.platform.shared.security.TestJwtSupport.operationsJwt(
                                         "payment-capture-ops-" + UUID.randomUUID()
                                 ))
@@ -519,6 +524,8 @@ class PaymentIntentIntegrationTest extends PostgresIntegrationTest {
                                         "Idempotency-Key",
                                         "capture-canceled-" + UUID.randomUUID()
                                 )
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(operationReason("Attempt canceled capture."))
                                 .with(com.payledger.platform.shared.security.TestJwtSupport.operationsJwt(
                                         "payment-capture-canceled-ops-" + UUID.randomUUID()
                                 ))
@@ -563,6 +570,8 @@ class PaymentIntentIntegrationTest extends PostgresIntegrationTest {
                                 paymentIntentId
                         )
                                 .header("Idempotency-Key", refundKey)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(operationReason("Refund payment."))
                                 .with(com.payledger.platform.shared.security.TestJwtSupport.operationsJwt(
                                         "payment-refund-ops-" + UUID.randomUUID()
                                 ))
@@ -578,6 +587,8 @@ class PaymentIntentIntegrationTest extends PostgresIntegrationTest {
                                 paymentIntentId
                         )
                                 .header("Idempotency-Key", refundKey)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(operationReason("Replay refund."))
                                 .with(com.payledger.platform.shared.security.TestJwtSupport.operationsJwt(
                                         "payment-refund-ops-" + UUID.randomUUID()
                                 ))
@@ -751,6 +762,8 @@ class PaymentIntentIntegrationTest extends PostgresIntegrationTest {
                                 paymentIntentId
                         )
                                 .header("Idempotency-Key", idempotencyKey)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(operationReason("Capture helper payment."))
                                 .with(com.payledger.platform.shared.security.TestJwtSupport.operationsJwt(
                                         "payment-capture-helper-ops-" + UUID.randomUUID()
                                 ))
@@ -758,6 +771,12 @@ class PaymentIntentIntegrationTest extends PostgresIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status")
                         .value(PaymentIntentStatus.CAPTURED.name()));
+    }
+
+    private String operationReason(String reason) throws Exception {
+        return objectMapper.writeValueAsString(
+                new OperationReasonRequest(reason)
+        );
     }
 
     private LedgerAccount createPlatformCashAccount(String currency) {

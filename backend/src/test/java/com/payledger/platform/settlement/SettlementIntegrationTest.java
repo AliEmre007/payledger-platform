@@ -260,7 +260,8 @@ class SettlementIntegrationTest extends PostgresIntegrationTest {
         PaymentIntent captured = paymentIntentService.capture(
                 authorized.getId(),
                 "capture-for-settlement-" + UUID.randomUUID(),
-                OPERATIONS_ACTOR
+                OPERATIONS_ACTOR,
+                "Capture before settlement test."
         );
 
         return new MerchantPaymentContext(merchant, captured);
@@ -304,7 +305,8 @@ class SettlementIntegrationTest extends PostgresIntegrationTest {
         ReconcileSettlementRequest request = new ReconcileSettlementRequest(
                 providerReference,
                 actualAmountMinor,
-                actualCurrency
+                actualCurrency,
+                "Reconcile simulated provider payout."
         );
 
         String content = mockMvc.perform(

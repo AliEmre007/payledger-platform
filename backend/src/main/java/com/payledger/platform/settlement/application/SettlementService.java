@@ -115,7 +115,8 @@ public class SettlementService {
                         providerReference,
                         command.actualAmountMinor(),
                         actualCurrency,
-                        command.actorExternalSubject()
+                        command.actorExternalSubject(),
+                        command.reason()
                 ));
     }
 
@@ -219,7 +220,8 @@ public class SettlementService {
             String providerReference,
             long actualAmountMinor,
             String actualCurrency,
-            String actorExternalSubject
+            String actorExternalSubject,
+            String reason
     ) {
         ReconciliationCase reconciliationCase =
                 reconciliationCaseRepository.saveAndFlush(
@@ -247,7 +249,9 @@ public class SettlementService {
                         "expectedCurrency",
                         reconciliationCase.getExpectedCurrency(),
                         "actualCurrency",
-                        reconciliationCase.getActualCurrency()
+                        reconciliationCase.getActualCurrency(),
+                        "reason",
+                        reason.trim()
                 )
         );
 

@@ -7,6 +7,7 @@ public record ReconcileSettlementCommand(
         String providerReference,
         long actualAmountMinor,
         String actualCurrency,
-        String actorExternalSubject
+        String actorExternalSubject,
+        String reason
 ) {
 }

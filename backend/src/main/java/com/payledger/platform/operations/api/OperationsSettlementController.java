@@ -26,7 +26,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/operations/settlements")
-@PreAuthorize("hasRole('OPERATIONS')")
+@PreAuthorize("hasAnyRole('OPERATIONS', 'ADMIN')")
 public class OperationsSettlementController {
 
     private final SettlementService settlementService;
@@ -72,7 +72,8 @@ public class OperationsSettlementController {
                         request.providerReference(),
                         request.actualAmountMinor(),
                         request.actualCurrency(),
-                        actor.externalSubject()
+                        actor.externalSubject(),
+                        request.reason()
                 )
         );
 

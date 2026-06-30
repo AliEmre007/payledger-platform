@@ -41,9 +41,25 @@ public class CustomerIdentityService {
             UUID customerId,
             String externalSubject
     ) {
+        return linkKeycloakIdentity(
+                customerId,
+                externalSubject,
+                normalizeSubject(externalSubject),
+                null
+        );
+    }
+
+    @Transactional
+    public CustomerIdentity linkKeycloakIdentity(
+            UUID customerId,
+            String externalSubject,
+            String actorExternalSubject,
+            String reason
+    ) {
         customerService.getCustomer(customerId);
 
         String normalizedSubject = normalizeSubject(externalSubject);
+        String normalizedActor = normalizeSubject(actorExternalSubject);
 
         CustomerIdentity existingForSubject =
                 customerIdentityRepository
@@ -85,13 +101,15 @@ public class CustomerIdentityService {
         );
 
         Map<String, Object> metadata = Map.of(
-                "identityProvider", identity.getIdentityProvider().name()
+                "identityProvider", identity.getIdentityProvider().name(),
+                "linkedExternalSubject", identity.getExternalSubject(),
+                "reason", reason == null ? "" : reason.trim()
         );
 
         auditEventService.record(
                 new AuditEventCommand(
                         "CUSTOMER_IDENTITY_LINKED",
-                        normalizedSubject,
+                        normalizedActor,
                         customerId,
                         "CUSTOMER_IDENTITY",
                         identity.getId(),

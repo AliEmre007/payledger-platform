@@ -7,6 +7,7 @@ import jakarta.validation.constraints.Size;
 public record ReconcileSettlementRequest(
         @NotBlank @Size(max = 120) String providerReference,
         @Min(0) long actualAmountMinor,
-        @NotBlank @Size(min = 3, max = 3) String actualCurrency
+        @NotBlank @Size(min = 3, max = 3) String actualCurrency,
+        @NotBlank @Size(max = 500) String reason
 ) {
 }

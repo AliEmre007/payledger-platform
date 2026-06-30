@@ -17,7 +17,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/operations/wallets")
-@PreAuthorize("hasRole('OPERATIONS')")
+@PreAuthorize("hasAnyRole('OPERATIONS', 'ADMIN')")
 public class OperationsWalletController {
 
     private final WalletLifecycleService walletLifecycleService;
