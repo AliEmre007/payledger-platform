@@ -393,7 +393,8 @@ public class PaymentIntentService {
                         command.merchantId(),
                         command.amountMinor(),
                         command.currency()
-                )
+                ),
+                command.externalSubject()
         );
 
         if (!decision.allowed()) {

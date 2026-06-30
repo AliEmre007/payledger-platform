@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -49,5 +50,39 @@ public interface PaymentIntentRepository
             @Param("merchantId") UUID merchantId,
             @Param("currency") String currency,
             @Param("status") PaymentIntentStatus status
+    );
+
+    @Query("""
+            SELECT COALESCE(SUM(intent.amountMinor), 0)
+            FROM PaymentIntent intent
+            WHERE intent.customerId = :customerId
+              AND intent.currency = :currency
+              AND intent.status IN :statuses
+              AND intent.createdAt >= :startInclusive
+              AND intent.createdAt < :endExclusive
+            """)
+    long sumOutgoingAmountForCustomer(
+            @Param("customerId") UUID customerId,
+            @Param("currency") String currency,
+            @Param("statuses") List<PaymentIntentStatus> statuses,
+            @Param("startInclusive") Instant startInclusive,
+            @Param("endExclusive") Instant endExclusive
+    );
+
+    @Query("""
+            SELECT COUNT(intent)
+            FROM PaymentIntent intent
+            WHERE intent.customerId = :customerId
+              AND intent.currency = :currency
+              AND intent.status IN :statuses
+              AND intent.createdAt >= :startInclusive
+              AND intent.createdAt < :endExclusive
+            """)
+    long countOutgoingForCustomer(
+            @Param("customerId") UUID customerId,
+            @Param("currency") String currency,
+            @Param("statuses") List<PaymentIntentStatus> statuses,
+            @Param("startInclusive") Instant startInclusive,
+            @Param("endExclusive") Instant endExclusive
     );
 }

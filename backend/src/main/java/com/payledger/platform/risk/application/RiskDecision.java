@@ -7,4 +7,8 @@ public record RiskDecision(
     public static RiskDecision allow() {
         return new RiskDecision(true, "ALLOW");
     }
+
+    public static RiskDecision deny(String reasonCode) {
+        return new RiskDecision(false, reasonCode);
+    }
 }

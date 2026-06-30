@@ -65,6 +65,23 @@ surface exists. Both require an `Idempotency-Key` header. Capture consumes the
 active hold and creates the payment ledger journal. Refund creates a separate
 compensating journal and never edits the capture journal.
 
+## Risk Controls
+
+Customer-initiated transfers and payment-intent authorizations pass through a
+risk decision point before any ledger posting or funds hold is created.
+
+Initial risk controls are deterministic:
+
+- per-command maximum amount;
+- daily outgoing amount by customer and currency;
+- daily outgoing command count by customer and currency;
+- blocked customer, wallet, and merchant statuses.
+
+Risk denials return `RISK_DENIED` with HTTP `422`. The response message is
+generic and does not disclose policy thresholds or detailed rule internals.
+The internal denial reason code is recorded in audit metadata for operations
+review.
+
 ## Operations APIs
 
 Operations APIs use:
@@ -128,6 +145,7 @@ Authentication and ownership errors use stable codes:
 - `401 Unauthorized`: missing or invalid bearer token.
 - `IDENTITY_NOT_LINKED` with HTTP `403`: the JWT is valid, but its `sub` is not linked to a PayLedger customer.
 - `WALLET_ACCESS_DENIED` with HTTP `403`: the linked customer attempted to access or debit another customer's wallet.
+- `RISK_DENIED` with HTTP `422`: a transfer or payment authorization was rejected by risk controls.
 
 ## Time
 

@@ -15,6 +15,9 @@ import com.payledger.platform.ledger.domain.PostingDirection;
 import com.payledger.platform.ledger.infrastructure.LedgerAccountRepository;
 import com.payledger.platform.outbox.application.OutboxEventCommand;
 import com.payledger.platform.outbox.application.OutboxEventService;
+import com.payledger.platform.risk.application.RiskDecision;
+import com.payledger.platform.risk.application.RiskDecisionService;
+import com.payledger.platform.risk.application.TransferRiskRequest;
 import com.payledger.platform.shared.error.BusinessRuleViolationException;
 import com.payledger.platform.shared.error.IdempotencyConflictException;
 import com.payledger.platform.shared.error.InsufficientFundsException;
@@ -50,6 +53,7 @@ public class TransferService {
     private final LedgerService ledgerService;
     private final AuditEventService auditEventService;
     private final OutboxEventService outboxEventService;
+    private final RiskDecisionService riskDecisionService;
 
     public TransferService(
             WalletRepository walletRepository,
@@ -59,7 +63,8 @@ public class TransferService {
             WalletAvailableBalanceService availableBalanceService,
             LedgerService ledgerService,
             AuditEventService auditEventService,
-            OutboxEventService outboxEventService
+            OutboxEventService outboxEventService,
+            RiskDecisionService riskDecisionService
     ) {
         this.walletRepository = walletRepository;
         this.customerRepository = customerRepository;
@@ -69,6 +74,7 @@ public class TransferService {
         this.ledgerService = ledgerService;
         this.auditEventService = auditEventService;
         this.outboxEventService = outboxEventService;
+        this.riskDecisionService = riskDecisionService;
     }
 
     @Transactional
@@ -150,6 +156,8 @@ public class TransferService {
                     "Source wallet does not have sufficient available funds."
             );
         }
+
+        requireRiskApproval(command);
 
         UUID transferId = UUID.randomUUID();
 
@@ -314,6 +322,26 @@ public class TransferService {
             throw new BusinessRuleViolationException(
                     "KYC_NOT_VERIFIED",
                     "Destination customer must have approved KYC before receiving a transfer."
+            );
+        }
+    }
+
+    private void requireRiskApproval(CreateTransferCommand command) {
+        RiskDecision decision = riskDecisionService.assessTransfer(
+                new TransferRiskRequest(
+                        command.initiatedByCustomerId(),
+                        command.sourceWalletId(),
+                        command.destinationWalletId(),
+                        command.amountMinor(),
+                        command.currency()
+                ),
+                command.initiatedByExternalSubject()
+        );
+
+        if (!decision.allowed()) {
+            throw new BusinessRuleViolationException(
+                    "RISK_DENIED",
+                    "Transfer was rejected by risk controls."
             );
         }
     }
