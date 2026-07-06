@@ -1,6 +1,7 @@
 package com.payledger.platform.shared.security;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.convert.converter.Converter;
@@ -28,6 +29,15 @@ import java.util.Map;
 )
 public class SecurityConfiguration {
 
+    private final boolean prometheusPublic;
+
+    public SecurityConfiguration(
+            @Value("${payledger.management.prometheus-public:false}")
+            boolean prometheusPublic
+    ) {
+        this.prometheusPublic = prometheusPublic;
+    }
+
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http
@@ -37,13 +47,21 @@ public class SecurityConfiguration {
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
-                .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers(
-                                "/actuator/health",
-                                "/actuator/health/**",
-                                "/api/v1/provider/webhooks"
-                        ).permitAll()
-                        .anyRequest().authenticated()
+                .authorizeHttpRequests(authorize -> {
+                    authorize.requestMatchers(
+                            "/actuator/health",
+                            "/actuator/health/**",
+                            "/api/v1/provider/webhooks"
+                    ).permitAll();
+
+                    if (prometheusPublic) {
+                        authorize.requestMatchers(
+                                "/actuator/prometheus"
+                        ).permitAll();
+                    }
+
+                    authorize.anyRequest().authenticated();
+                }
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt
