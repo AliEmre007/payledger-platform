@@ -1,9 +1,13 @@
 package com.payledger.platform.shared.error;
 
 import com.payledger.platform.shared.web.TraceIdFilter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -14,6 +18,9 @@ import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+
+    private static final Logger LOGGER =
+            LoggerFactory.getLogger(ApiExceptionHandler.class);
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiError> handleNotFound(
@@ -142,6 +149,38 @@ public class ApiExceptionHandler {
         );
     }
 
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiError> handleUnreadableMessage(
+            HttpMessageNotReadableException exception
+    ) {
+        return error(
+                HttpStatus.BAD_REQUEST,
+                "MALFORMED_REQUEST_BODY",
+                "Request body is missing or malformed."
+        );
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiError> handleAccessDenied(
+            AccessDeniedException exception
+    ) {
+        return error(
+                HttpStatus.FORBIDDEN,
+                "ACCESS_DENIED",
+                "The authenticated caller is not allowed to perform this action."
+        );
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiError> handleUnexpected(Exception exception) {
+        LOGGER.error("Unhandled API exception", exception);
+        return error(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "INTERNAL_ERROR",
+                "An unexpected error occurred."
+        );
+    }
+
     private ResponseEntity<ApiError> error(
             HttpStatus status,
             String code,
@@ -149,11 +188,15 @@ public class ApiExceptionHandler {
     ) {
         return ResponseEntity
                 .status(status)
-                .body(new ApiError(
-                        code,
-                        message,
-                        MDC.get(TraceIdFilter.TRACE_ID),
-                        Instant.now()
-                ));
+                .body(apiError(code, message));
+    }
+
+    private ApiError apiError(String code, String message) {
+        return new ApiError(
+                code,
+                message,
+                MDC.get(TraceIdFilter.TRACE_ID),
+                Instant.now()
+        );
     }
 }

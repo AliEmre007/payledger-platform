@@ -84,9 +84,29 @@ Secrets, personal data, tokens, or payment information appear in logs or Git his
 Mitigation:
 - Secret management.
 - Sanitized structured logging.
+- Trace IDs are UUID correlation identifiers and must not encode customer data
+  or credentials.
+- Metrics use low-cardinality business labels and must not include customer IDs,
+  wallet IDs, merchant names, bearer tokens, webhook payloads, or secrets.
+- API error handling returns stable error codes and generic internal-error
+  messages instead of stack traces or database details.
 - .gitignore rules.
 - No real card data.
 - Code review and CI checks.
+
+### API Flooding And Oversized Requests
+A caller repeatedly submits money-moving commands or oversized request bodies
+to exhaust application resources or probe idempotency behavior.
+
+Mitigation:
+- Money-moving POST endpoints have a local rate limit before controller
+  workflows create holds, postings, audit rows, or outbox rows.
+- Rejected rate-limited requests return `429` with `Retry-After` and do not
+  enter financial transaction flows.
+- Oversized request bodies are rejected with `413`.
+- Idempotency enforcement remains inside the business workflow and is not
+  bypassed by rate limiting.
+- Production deployments should enforce complementary edge rate limits.
 
 ### Database Corruption or Loss
 Financial records are lost or altered through faulty migration, operator error, or infrastructure failure.

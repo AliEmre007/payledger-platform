@@ -48,6 +48,34 @@ initial processing state. A later sprint will add a processor; this foundation
 only guarantees that event intent is committed atomically with the business
 operation.
 
+## Observability And Resilience
+
+Every HTTP response includes `X-Trace-Id`. If a caller supplies a valid UUID
+trace ID in `X-Trace-Id`, the API propagates it into logs and audit events;
+otherwise the API generates a new UUID.
+
+Spring Boot Actuator exposes health, info, metrics, and Prometheus-format
+metrics. Health is public for container probes. Metrics and Prometheus scrape
+endpoints require authentication and must not include PII, secrets, bearer
+tokens, or raw payment payloads.
+
+Business metrics use low-cardinality labels only:
+
+- completed transfers by currency;
+- payment state transitions by status;
+- risk denials by action and reason code;
+- outbox backlog;
+- notification processing outcomes;
+- open reconciliation cases and discrepancy reasons.
+
+Money-moving POST endpoints have a local request rate limit and request body
+size limit before controller workflows run. The rate limiter is intentionally a
+service-local guard for the portfolio deployment; a distributed production
+deployment would move this control to an edge gateway or Redis-backed limiter.
+
+OpenAPI metadata is available from `/api-docs` and documents the customer,
+provider, operations, actuator, and error-response surfaces.
+
 ## Local Development Topology
 
 Client

@@ -25,6 +25,7 @@ import com.payledger.platform.shared.error.BusinessRuleViolationException;
 import com.payledger.platform.shared.error.IdempotencyConflictException;
 import com.payledger.platform.shared.error.ResourceNotFoundException;
 import com.payledger.platform.shared.error.WalletAccessDeniedException;
+import com.payledger.platform.shared.observability.BusinessMetrics;
 import com.payledger.platform.wallet.application.CreateFundsHoldCommand;
 import com.payledger.platform.wallet.application.FundsHoldService;
 import com.payledger.platform.wallet.domain.FundsHold;
@@ -54,6 +55,7 @@ public class PaymentIntentService {
     private final RiskDecisionService riskDecisionService;
     private final AuditEventService auditEventService;
     private final OutboxEventService outboxEventService;
+    private final BusinessMetrics metrics;
 
     public PaymentIntentService(
             PaymentIntentRepository paymentIntentRepository,
@@ -65,7 +67,8 @@ public class PaymentIntentService {
             LedgerService ledgerService,
             RiskDecisionService riskDecisionService,
             AuditEventService auditEventService,
-            OutboxEventService outboxEventService
+            OutboxEventService outboxEventService,
+            BusinessMetrics metrics
     ) {
         this.paymentIntentRepository = paymentIntentRepository;
         this.walletRepository = walletRepository;
@@ -77,6 +80,7 @@ public class PaymentIntentService {
         this.riskDecisionService = riskDecisionService;
         this.auditEventService = auditEventService;
         this.outboxEventService = outboxEventService;
+        this.metrics = metrics;
     }
 
     @Transactional
@@ -453,5 +457,6 @@ public class PaymentIntentService {
                         metadata
                 )
         );
+        metrics.paymentStateTransition(paymentIntent.getStatus().name());
     }
 }

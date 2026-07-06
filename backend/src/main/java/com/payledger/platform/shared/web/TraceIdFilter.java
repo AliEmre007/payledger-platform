@@ -5,6 +5,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.MDC;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -12,9 +13,11 @@ import java.io.IOException;
 import java.util.UUID;
 
 @Component
+@Order(0)
 public class TraceIdFilter extends OncePerRequestFilter {
 
     public static final String TRACE_ID = "traceId";
+    public static final String TRACE_ID_HEADER = "X-Trace-Id";
 
     @Override
     protected void doFilterInternal(
@@ -22,15 +25,29 @@ public class TraceIdFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain
     ) throws ServletException, IOException {
-        String traceId = UUID.randomUUID().toString();
+        String traceId = resolveTraceId(request);
 
         MDC.put(TRACE_ID, traceId);
-        response.setHeader("X-Trace-Id", traceId);
+        response.setHeader(TRACE_ID_HEADER, traceId);
 
         try {
             filterChain.doFilter(request, response);
         } finally {
             MDC.remove(TRACE_ID);
+        }
+    }
+
+    private String resolveTraceId(HttpServletRequest request) {
+        String requestedTraceId = request.getHeader(TRACE_ID_HEADER);
+
+        if (requestedTraceId == null || requestedTraceId.isBlank()) {
+            return UUID.randomUUID().toString();
+        }
+
+        try {
+            return UUID.fromString(requestedTraceId.trim()).toString();
+        } catch (IllegalArgumentException exception) {
+            return UUID.randomUUID().toString();
         }
     }
 }

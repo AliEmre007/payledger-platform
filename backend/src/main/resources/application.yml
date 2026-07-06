@@ -1,5 +1,6 @@
 server:
   port: ${SERVER_PORT:18080}
+  max-http-request-header-size: ${MAX_HTTP_REQUEST_HEADER_SIZE:16KB}
 
 spring:
   application:
@@ -39,7 +40,28 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics,prometheus
   endpoint:
     health:
       show-details: never
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+
+logging:
+  pattern:
+    level: "%5p traceId=%X{traceId:-}"
+
+payledger:
+  resilience:
+    max-request-body-bytes: ${PAYLEDGER_MAX_REQUEST_BODY_BYTES:131072}
+    rate-limit:
+      enabled: ${PAYLEDGER_RATE_LIMIT_ENABLED:true}
+      window: ${PAYLEDGER_RATE_LIMIT_WINDOW:PT1M}
+      max-requests-per-window: ${PAYLEDGER_RATE_LIMIT_MAX_REQUESTS:120}
+      money-moving-paths:
+        - /api/v1/transfers
+        - /api/v1/payment-intents
+        - /api/v1/operations/payment-intents
+        - /api/v1/operations/settlements

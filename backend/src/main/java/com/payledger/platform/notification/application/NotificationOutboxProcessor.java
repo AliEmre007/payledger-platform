@@ -1,5 +1,6 @@
 package com.payledger.platform.notification.application;
 
+import com.payledger.platform.shared.observability.BusinessMetrics;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,17 +22,20 @@ public class NotificationOutboxProcessor {
     private final ObjectMapper objectMapper;
     private final OutboxNotificationMapper notificationMapper;
     private final NotificationDeliveryAdapter deliveryAdapter;
+    private final BusinessMetrics metrics;
 
     public NotificationOutboxProcessor(
             JdbcTemplate jdbcTemplate,
             ObjectMapper objectMapper,
             OutboxNotificationMapper notificationMapper,
-            NotificationDeliveryAdapter deliveryAdapter
+            NotificationDeliveryAdapter deliveryAdapter,
+            BusinessMetrics metrics
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.objectMapper = objectMapper;
         this.notificationMapper = notificationMapper;
         this.deliveryAdapter = deliveryAdapter;
+        this.metrics = metrics;
     }
 
     @Transactional
@@ -69,6 +73,7 @@ public class NotificationOutboxProcessor {
 
         if (message.isEmpty()) {
             markOutboxProcessed(outboxRow.id());
+            metrics.notificationProcessed("SKIPPED");
             return;
         }
 
@@ -100,6 +105,7 @@ public class NotificationOutboxProcessor {
             recordAttempt(notification.id(), nextAttempt, "SUCCEEDED", null);
             markNotificationSent(notification.id(), nextAttempt);
             markOutboxProcessed(outboxRow.id());
+            metrics.notificationProcessed("SENT");
         } catch (RuntimeException exception) {
             String error = truncate(exception.getMessage(), 500);
             recordAttempt(notification.id(), nextAttempt, "FAILED", error);
@@ -107,9 +113,11 @@ public class NotificationOutboxProcessor {
             if (nextAttempt >= MAX_ATTEMPTS) {
                 markNotificationFailed(notification.id(), nextAttempt, error);
                 markOutboxFailed(outboxRow.id(), nextAttempt, error);
+                metrics.notificationProcessed("FAILED");
             } else {
                 markNotificationPending(notification.id(), nextAttempt, error);
                 markOutboxRetryable(outboxRow.id(), nextAttempt, error);
+                metrics.notificationProcessed("RETRY");
             }
         }
     }

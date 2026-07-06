@@ -9,6 +9,7 @@ import com.payledger.platform.merchant.infrastructure.MerchantRepository;
 import com.payledger.platform.payment.domain.PaymentIntentStatus;
 import com.payledger.platform.payment.infrastructure.PaymentIntentRepository;
 import com.payledger.platform.shared.error.ResourceNotFoundException;
+import com.payledger.platform.shared.observability.BusinessMetrics;
 import com.payledger.platform.transfer.infrastructure.TransferRepository;
 import com.payledger.platform.wallet.domain.Wallet;
 import com.payledger.platform.wallet.domain.WalletStatus;
@@ -45,6 +46,7 @@ public class RiskDecisionService {
     private final WalletRepository walletRepository;
     private final MerchantRepository merchantRepository;
     private final RiskDecisionAuditService riskDecisionAuditService;
+    private final BusinessMetrics metrics;
     private final Clock clock;
 
     public RiskDecisionService(
@@ -53,7 +55,8 @@ public class RiskDecisionService {
             CustomerRepository customerRepository,
             WalletRepository walletRepository,
             MerchantRepository merchantRepository,
-            RiskDecisionAuditService riskDecisionAuditService
+            RiskDecisionAuditService riskDecisionAuditService,
+            BusinessMetrics metrics
     ) {
         this.transferRepository = transferRepository;
         this.paymentIntentRepository = paymentIntentRepository;
@@ -61,6 +64,7 @@ public class RiskDecisionService {
         this.walletRepository = walletRepository;
         this.merchantRepository = merchantRepository;
         this.riskDecisionAuditService = riskDecisionAuditService;
+        this.metrics = metrics;
         this.clock = Clock.systemUTC();
     }
 
@@ -242,6 +246,7 @@ public class RiskDecisionService {
                 actorExternalSubject,
                 reasonCode
         );
+        metrics.riskDenied(action, reasonCode);
     }
 
     private Instant currentUtcDayStart() {

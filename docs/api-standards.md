@@ -146,6 +146,32 @@ Authentication and ownership errors use stable codes:
 - `IDENTITY_NOT_LINKED` with HTTP `403`: the JWT is valid, but its `sub` is not linked to a PayLedger customer.
 - `WALLET_ACCESS_DENIED` with HTTP `403`: the linked customer attempted to access or debit another customer's wallet.
 - `RISK_DENIED` with HTTP `422`: a transfer or payment authorization was rejected by risk controls.
+- `REQUEST_BODY_TOO_LARGE` with HTTP `413`: the request body exceeds the configured API limit.
+- `RATE_LIMIT_EXCEEDED` with HTTP `429`: the caller exceeded the local money-moving request limit; the response includes `Retry-After`.
+- `MALFORMED_REQUEST_BODY` with HTTP `400`: the JSON body is missing or cannot be parsed into the request contract.
+- `INTERNAL_ERROR` with HTTP `500`: an unexpected server failure occurred; the message must not include stack traces or internal implementation details.
+
+## Trace, Metrics, And API Docs
+
+Every response includes `X-Trace-Id`. Callers may supply a UUID `X-Trace-Id`
+header to correlate a request across API responses, logs, and audit events.
+Invalid or absent trace IDs are replaced by a generated UUID.
+
+Health is available at:
+
+GET /actuator/health
+
+Metrics and Prometheus-format metrics are authenticated:
+
+GET /actuator/metrics
+GET /actuator/prometheus
+
+Business metrics must use low-cardinality labels and must not include PII,
+wallet IDs, raw provider payloads, bearer tokens, or secrets.
+
+OpenAPI metadata is available at:
+
+GET /api-docs
 
 ## Time
 

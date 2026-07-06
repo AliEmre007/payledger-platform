@@ -23,6 +23,7 @@ import com.payledger.platform.shared.error.IdempotencyConflictException;
 import com.payledger.platform.shared.error.InsufficientFundsException;
 import com.payledger.platform.shared.error.ResourceNotFoundException;
 import com.payledger.platform.shared.error.WalletAccessDeniedException;
+import com.payledger.platform.shared.observability.BusinessMetrics;
 import com.payledger.platform.transfer.domain.Transfer;
 import com.payledger.platform.transfer.infrastructure.TransferRepository;
 import com.payledger.platform.wallet.application.WalletAvailableBalance;
@@ -54,6 +55,7 @@ public class TransferService {
     private final AuditEventService auditEventService;
     private final OutboxEventService outboxEventService;
     private final RiskDecisionService riskDecisionService;
+    private final BusinessMetrics metrics;
 
     public TransferService(
             WalletRepository walletRepository,
@@ -64,7 +66,8 @@ public class TransferService {
             LedgerService ledgerService,
             AuditEventService auditEventService,
             OutboxEventService outboxEventService,
-            RiskDecisionService riskDecisionService
+            RiskDecisionService riskDecisionService,
+            BusinessMetrics metrics
     ) {
         this.walletRepository = walletRepository;
         this.customerRepository = customerRepository;
@@ -75,6 +78,7 @@ public class TransferService {
         this.auditEventService = auditEventService;
         this.outboxEventService = outboxEventService;
         this.riskDecisionService = riskDecisionService;
+        this.metrics = metrics;
     }
 
     @Transactional
@@ -223,6 +227,8 @@ public class TransferService {
                         eventData
                 )
         );
+
+        metrics.transferCompleted(transfer.getCurrency());
 
         return transfer;
     }

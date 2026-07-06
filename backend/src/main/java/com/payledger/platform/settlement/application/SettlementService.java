@@ -22,6 +22,7 @@ import com.payledger.platform.settlement.infrastructure.SettlementBatchRepositor
 import com.payledger.platform.settlement.infrastructure.SettlementLineRepository;
 import com.payledger.platform.shared.error.BusinessRuleViolationException;
 import com.payledger.platform.shared.error.ResourceNotFoundException;
+import com.payledger.platform.shared.observability.BusinessMetrics;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,6 +45,7 @@ public class SettlementService {
     private final LedgerService ledgerService;
     private final AuditEventService auditEventService;
     private final OutboxEventService outboxEventService;
+    private final BusinessMetrics metrics;
 
     public SettlementService(
             SettlementBatchRepository settlementBatchRepository,
@@ -53,7 +55,8 @@ public class SettlementService {
             LedgerAccountService ledgerAccountService,
             LedgerService ledgerService,
             AuditEventService auditEventService,
-            OutboxEventService outboxEventService
+            OutboxEventService outboxEventService,
+            BusinessMetrics metrics
     ) {
         this.settlementBatchRepository = settlementBatchRepository;
         this.settlementLineRepository = settlementLineRepository;
@@ -63,6 +66,7 @@ public class SettlementService {
         this.ledgerService = ledgerService;
         this.auditEventService = auditEventService;
         this.outboxEventService = outboxEventService;
+        this.metrics = metrics;
     }
 
     @Transactional
@@ -254,6 +258,12 @@ public class SettlementService {
                         reason.trim()
                 )
         );
+
+        if (reconciliationCase.getDiscrepancyReason() != null) {
+            metrics.reconciliationDiscrepancy(
+                    reconciliationCase.getDiscrepancyReason()
+            );
+        }
 
         return ReconciliationCaseDetails.from(reconciliationCase);
     }
