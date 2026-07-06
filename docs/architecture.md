@@ -78,6 +78,7 @@ provider, operations, actuator, and error-response surfaces.
 
 ## Local Development Topology
 
+```text
 Client
   |
   v
@@ -86,8 +87,42 @@ Spring Boot API :18080
   +--> PostgreSQL :55433
   |
   +--> Redis :56379
+```
 
 Kafka, Keycloak, Prometheus, Grafana, and MinIO will be added in controlled phases after the core API and database foundation are stable.
+
+## Core Money Movement Trace
+
+```text
+Customer/API command
+  -> application service transaction
+  -> business record
+  -> journal_entries
+  -> ledger_postings
+  -> audit_events
+  -> outbox_events
+```
+
+The same transaction commits the business row, financial journal, audit event,
+and outbox event where the workflow has financial or asynchronous side effects.
+If any step fails before commit, none of those records are kept.
+
+## Deployment Topology
+
+```text
+TLS reverse proxy
+  -> PayLedger API container
+       -> PostgreSQL
+       -> external Keycloak issuer
+       -> Prometheus scrape endpoint
+
+One-shot backend-migrate container
+  -> PostgreSQL Flyway schema migration
+```
+
+Only `backend-migrate` runs Flyway in the production Compose topology. Runtime
+API containers start with Flyway disabled and Hibernate schema validation
+enabled.
 
 ## Database Rules
 
