@@ -12,6 +12,31 @@ cd backend
 ./mvnw test
 ```
 
+For the browser UI, start the backend and frontend in separate terminals:
+
+```bash
+cd backend
+./mvnw spring-boot:run
+```
+
+```bash
+cd frontend
+npm run dev
+```
+
+Open `http://localhost:5173`. The local Keycloak realm includes `alice` /
+`alice-dev-password` for customer workflows and `operator` /
+`operator-dev-password` for operations workflows.
+
+For the shortest UI demo:
+
+1. Log in as `operator`.
+2. Open Operations and run `Seed demo data`.
+3. Save the returned customer wallet, recipient wallet, and merchant IDs.
+4. Log out and log in as `alice`.
+5. Use those IDs to load balance/statement, send a transfer, and authorize a
+   payment.
+
 For a production-style container check, follow
 [deployment-runbook.md](deployment-runbook.md).
 

@@ -56,12 +56,16 @@ The browser client is public, uses `S256` PKCE, and has direct password grants
 disabled. The existing `payledger-dev-cli` client remains development-only for
 terminal workflows and is not used by browser code.
 
-Default local user:
+Default local users:
 
 ```text
 username: alice
 password: alice-dev-password
 realm role: CUSTOMER
+
+username: operator
+password: operator-dev-password
+realm role: OPERATIONS
 ```
 
 Operations screens are visible only when the access token contains
@@ -86,6 +90,8 @@ fetched from API responses and follow ledger/hold semantics.
 
 The operations workspace supports:
 
+- one-click local demo seeding for a funded customer wallet, recipient wallet,
+  and active merchant;
 - customer KYC submit/approve/reject;
 - wallet freeze/unfreeze/close;
 - merchant onboarding and activation;
@@ -98,6 +104,10 @@ The operations workspace supports:
 All operations mutations require a reason and rely on backend role checks. The
 frontend hides operations screens for customer-only tokens, but the API remains
 the enforcement point.
+
+For a quick local walkthrough, log in as `operator`, open Operations, and run
+`Seed demo data`. Then log out and log in as `alice`; use the returned customer
+wallet, recipient wallet, and merchant IDs in the Customer workspace.
 
 ## Configuration
 

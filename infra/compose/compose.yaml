@@ -55,6 +55,7 @@ services:
       KC_DB_PASSWORD: keycloak_dev_only
       KC_HEALTH_ENABLED: "true"
       PAYLEDGER_DEV_ALICE_PASSWORD: alice-dev-password
+      PAYLEDGER_DEV_OPERATOR_PASSWORD: operator-dev-password
     ports:
       - "18081:8080"
       - "19000:9000"

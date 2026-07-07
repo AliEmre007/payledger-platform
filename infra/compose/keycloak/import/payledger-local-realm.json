@@ -199,6 +199,24 @@
       "realmRoles": [
         "CUSTOMER"
       ]
+    },
+    {
+      "username": "operator",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "operator@payledger.local",
+      "firstName": "Operations",
+      "lastName": "Local",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${PAYLEDGER_DEV_OPERATOR_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "OPERATIONS"
+      ]
     }
   ]
 }

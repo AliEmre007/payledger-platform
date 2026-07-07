@@ -1,6 +1,7 @@
 import { config } from "./config";
 import type {
   ApiError,
+  DemoSeed,
   Merchant,
   OperationPage,
   OperationalAuditEvent,
@@ -206,6 +207,12 @@ export class ApiClient {
         body
       }
     );
+  }
+
+  seedDemoData(): Promise<DemoSeed> {
+    return this.request("/api/v1/operations/demo-seed", {
+      method: "POST"
+    });
   }
 
   private operationReason<T = unknown>(

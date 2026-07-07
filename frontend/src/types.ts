@@ -169,3 +169,14 @@ export type SettlementBatch = {
   totalAmountMinor: number;
   journalEntryId: string;
 };
+
+export type DemoSeed = {
+  customerId: string;
+  customerWalletId: string;
+  customerWalletBalanceMinor: number;
+  recipientCustomerId: string;
+  recipientWalletId: string;
+  merchantId: string;
+  currency: string;
+  topUpCreated: boolean;
+};

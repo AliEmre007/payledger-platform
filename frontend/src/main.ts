@@ -4,6 +4,7 @@ import { KeycloakAuthClient, hasOperationsRole } from "./auth";
 import { clearTransferDraft, getOrCreateTransferDraft } from "./idempotency";
 import type {
   ApiError,
+  DemoSeed,
   OperationPage,
   OperationalAuditEvent,
   OperationalCustomer,
@@ -28,6 +29,7 @@ type UiState = {
   statement?: WalletStatement;
   lastTransfer?: string;
   lastPayment?: PaymentIntent;
+  lastDemoSeed?: DemoSeed;
   operations?: OperationsSnapshot;
 };
 
@@ -278,6 +280,13 @@ function renderOperationsView() {
 
   return `
     <section class="band ops-actions">
+      <div class="panel">
+        <h2>Demo Seed</h2>
+        <button class="button" type="button" data-action="seed-demo">
+          <i data-lucide="refresh-cw"></i><span>Seed demo data</span>
+        </button>
+        ${state.lastDemoSeed ? renderDemoSeed(state.lastDemoSeed) : emptyState("Create demo wallet funding, recipient, and merchant.")}
+      </div>
       <form class="panel" id="kyc-form">
         <h2>KYC Review</h2>
         <label>Customer ID <input name="customerId" required /></label>
@@ -349,6 +358,18 @@ function renderOperationsView() {
   `;
 }
 
+function renderDemoSeed(seed: DemoSeed) {
+  return `
+    <div class="result stack">
+      <strong>${seed.topUpCreated ? "Seed created" : "Seed already existed"}</strong>
+      <span>Wallet: ${escapeHtml(seed.customerWalletId)}</span>
+      <span>Recipient: ${escapeHtml(seed.recipientWalletId)}</span>
+      <span>Merchant: ${escapeHtml(seed.merchantId)}</span>
+      <span>Balance: ${formatMinor(seed.customerWalletBalanceMinor, seed.currency)}</span>
+    </div>
+  `;
+}
+
 function renderOperationsSnapshot(snapshot: OperationsSnapshot) {
   return `
     <div class="ops-grid">
@@ -404,6 +425,9 @@ function bindWorkspaceActions() {
   appRoot.querySelector("[data-action='refresh-operations']")?.addEventListener("click", () => {
     void loadOperations();
   });
+  appRoot.querySelector("[data-action='seed-demo']")?.addEventListener("click", () => {
+    void seedDemoData();
+  });
   appRoot.querySelector("[data-action='cancel-payment']")?.addEventListener("click", (event) => {
     const id = (event.currentTarget as HTMLElement).dataset.id;
     if (id) {
@@ -422,6 +446,14 @@ function bindWorkspaceActions() {
   bindForm("#payment-ops-form", handlePaymentOperation);
   bindForm("#settlement-form", handleSettlement);
   bindForm("#reconciliation-form", handleReconciliation);
+}
+
+async function seedDemoData() {
+  await run(async () => {
+    state.lastDemoSeed = await api.seedDemoData();
+    state.message = "Demo data seeded. Use the returned wallet and merchant IDs in the Customer tab.";
+    await loadOperations();
+  });
 }
 
 function bindForm(selector: string, handler: (form: HTMLFormElement, submitter?: HTMLElement) => void) {
