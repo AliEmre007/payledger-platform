@@ -121,6 +121,37 @@ class WalletBalanceApiIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void listsOnlyWalletsOwnedByLinkedCustomer() throws Exception {
+        WalletContext tryWallet = createWallet("list-owned-try", "TRY");
+        Wallet usdWallet = walletService.createWallet(
+                tryWallet.customer().getId(),
+                "USD"
+        );
+        createTryWallet("list-other");
+
+        String subject = "wallet-list-subject-" + UUID.randomUUID();
+        customerIdentityService.linkKeycloakIdentity(
+                tryWallet.customer().getId(),
+                subject
+        );
+
+        mockMvc.perform(
+                        get("/api/v1/wallets")
+                                .with(com.payledger.platform.shared.security.TestJwtSupport.customerJwt(subject))
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].customerId")
+                        .value(tryWallet.customer().getId().toString()))
+                .andExpect(jsonPath("$[1].customerId")
+                        .value(tryWallet.customer().getId().toString()))
+                .andExpect(jsonPath("$[?(@.id == '%s')]",
+                        tryWallet.wallet().getId().toString()).exists())
+                .andExpect(jsonPath("$[?(@.id == '%s')]",
+                        usdWallet.getId().toString()).exists());
+    }
+
+    @Test
     void returns403WhenLinkedCustomerReadsAnotherCustomersBalance()
             throws Exception {
         WalletContext owner = createTryWallet("balance-owner");
@@ -155,7 +186,23 @@ class WalletBalanceApiIntegrationTest extends PostgresIntegrationTest {
                 .andExpect(jsonPath("$.code").value("IDENTITY_NOT_LINKED"));
     }
 
+    @Test
+    void listWalletsReturns403WhenJwtSubjectIsNotLinked() throws Exception {
+        mockMvc.perform(
+                        get("/api/v1/wallets")
+                                .with(com.payledger.platform.shared.security.TestJwtSupport.customerJwt(
+                                        "unlinked-wallet-list-subject-" + UUID.randomUUID()
+                                ))
+                )
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("IDENTITY_NOT_LINKED"));
+    }
+
     private WalletContext createTryWallet(String label) {
+        return createWallet(label, "TRY");
+    }
+
+    private WalletContext createWallet(String label, String currency) {
         String suffix = UUID.randomUUID()
                 .toString()
                 .replace("-", "")
@@ -168,7 +215,7 @@ class WalletBalanceApiIntegrationTest extends PostgresIntegrationTest {
                 label + "-" + suffix + "@example.test"
         );
 
-        Wallet wallet = walletService.createWallet(customer.getId(), "TRY");
+        Wallet wallet = walletService.createWallet(customer.getId(), currency);
 
         LedgerAccount ledgerAccount = ledgerAccountRepository
                 .findByWalletId(wallet.getId())

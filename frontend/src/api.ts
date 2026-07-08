@@ -14,6 +14,7 @@ import type {
   SettlementBatch,
   TransferRequest,
   TransferResponse,
+  Wallet,
   WalletBalance,
   WalletStatement
 } from "./types";
@@ -22,6 +23,10 @@ type TokenProvider = () => Promise<string | null>;
 
 export class ApiClient {
   constructor(private readonly tokenProvider: TokenProvider) {}
+
+  myWallets(): Promise<Wallet[]> {
+    return this.request("/api/v1/wallets");
+  }
 
   walletBalance(walletId: string): Promise<WalletBalance> {
     return this.request(`/api/v1/wallets/${walletId}/balance`);

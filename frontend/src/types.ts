@@ -15,6 +15,13 @@ export type ApiError = {
   timestamp?: string;
 };
 
+export type Wallet = {
+  id: string;
+  customerId: string;
+  currency: string;
+  status: string;
+};
+
 export type WalletBalance = {
   walletId: string;
   currency: string;

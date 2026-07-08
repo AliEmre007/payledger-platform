@@ -29,9 +29,9 @@ public class OpenApiController {
     private Map<String, Object> paths() {
         return Map.ofEntries(
                 Map.entry("/api/v1/wallets", Map.of(
-                        "post", operation(
-                                "Create wallet",
-                                "Create an authenticated customer's wallet."
+                        "get", operation(
+                                "List my wallets",
+                                "Returns wallets owned by the authenticated customer."
                         )
                 )),
                 Map.entry("/api/v1/wallets/{walletId}/balance", Map.of(

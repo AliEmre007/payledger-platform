@@ -2,6 +2,7 @@ import { createIcons, Activity, ArrowRightLeft, Banknote, LogIn, LogOut, Refresh
 import { ApiClient } from "./api";
 import { KeycloakAuthClient, hasOperationsRole } from "./auth";
 import { clearTransferDraft, getOrCreateTransferDraft } from "./idempotency";
+import { formatMinor, parseMajorToMinor } from "./money";
 import type {
   ApiError,
   DemoSeed,
@@ -14,6 +15,7 @@ import type {
   PaymentIntent,
   TransferRequest,
   UserSession,
+  Wallet,
   WalletBalance,
   WalletStatement
 } from "./types";
@@ -25,6 +27,7 @@ type UiState = {
   activeView: "customer" | "operations";
   message: string;
   walletId: string;
+  wallets: Wallet[];
   balance?: WalletBalance;
   statement?: WalletStatement;
   lastTransfer?: string;
@@ -61,7 +64,8 @@ let state: UiState = {
   },
   activeView: "customer",
   message: "",
-  walletId: ""
+  walletId: "",
+  wallets: []
 };
 
 void boot();
@@ -69,6 +73,9 @@ void boot();
 async function boot() {
   try {
     state.session = await auth.init();
+    if (state.session.authenticated) {
+      await refreshCustomerWallets(false);
+    }
   } catch (error) {
     state.message = readableError(error);
   }
@@ -195,14 +202,12 @@ function renderCustomerView() {
     <section class="band two-column">
       <div class="panel">
         <div class="panel-header">
-          <h2>Wallet</h2>
+          <h2>My Wallets</h2>
           <button class="icon-button" data-action="refresh-wallet" title="Refresh wallet">
             <i data-lucide="refresh-cw"></i>
           </button>
         </div>
-        <label>Wallet ID
-          <input id="wallet-id" value="${escapeAttribute(state.walletId)}" placeholder="UUID" />
-        </label>
+        ${renderWalletCards()}
         ${state.balance ? renderBalance(state.balance) : emptyState("Load an owned wallet balance.")}
       </div>
       <div class="panel">
@@ -218,10 +223,10 @@ function renderCustomerView() {
     <section class="band two-column">
       <form class="panel" id="transfer-form">
         <h2>Transfer</h2>
-        <label>Source wallet <input name="sourceWalletId" value="${escapeAttribute(state.walletId)}" required /></label>
+        ${renderWalletSelect("sourceWalletId", "From wallet")}
         <label>Destination wallet <input name="destinationWalletId" required /></label>
         <div class="inline-fields">
-          <label>Amount minor <input name="amountMinor" type="number" min="1" required /></label>
+          <label>Amount <input name="amountMajor" inputmode="decimal" placeholder="125.00" required /></label>
           <label>Currency <input name="currency" maxlength="3" value="${escapeAttribute(state.balance?.currency ?? "TRY")}" required /></label>
         </div>
         <button class="button" type="submit">
@@ -231,10 +236,10 @@ function renderCustomerView() {
       </form>
       <form class="panel" id="payment-form">
         <h2>Payment Authorization</h2>
-        <label>Source wallet <input name="sourceWalletId" value="${escapeAttribute(state.walletId)}" required /></label>
+        ${renderWalletSelect("sourceWalletId", "From wallet")}
         <label>Merchant ID <input name="merchantId" required /></label>
         <div class="inline-fields">
-          <label>Amount minor <input name="amountMinor" type="number" min="1" required /></label>
+          <label>Amount <input name="amountMajor" inputmode="decimal" placeholder="125.00" required /></label>
           <label>Currency <input name="currency" maxlength="3" value="${escapeAttribute(state.balance?.currency ?? "TRY")}" required /></label>
         </div>
         <button class="button" type="submit">
@@ -243,6 +248,54 @@ function renderCustomerView() {
         ${renderPaymentResult()}
       </form>
     </section>
+  `;
+}
+
+function renderWalletCards() {
+  if (state.wallets.length === 0) {
+    return emptyState("No wallets are linked to this customer yet.");
+  }
+
+  return `
+    <div class="wallet-list" aria-label="My wallets">
+      ${state.wallets
+        .map(
+          (wallet) => `
+            <button
+              class="wallet-option ${state.walletId === wallet.id ? "active" : ""}"
+              type="button"
+              data-wallet-id="${escapeAttribute(wallet.id)}"
+            >
+              <span>${escapeHtml(wallet.currency)} wallet</span>
+              <strong>${escapeHtml(wallet.status)}</strong>
+              <small>${escapeHtml(shortId(wallet.id))}</small>
+            </button>
+          `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderWalletSelect(name: string, label: string) {
+  if (state.wallets.length === 0) {
+    return `<label>${escapeHtml(label)} <select name="${escapeAttribute(name)}" required disabled><option>No wallet available</option></select></label>`;
+  }
+
+  return `
+    <label>${escapeHtml(label)}
+      <select name="${escapeAttribute(name)}" required>
+        ${state.wallets
+          .map(
+            (wallet) => `
+              <option value="${escapeAttribute(wallet.id)}" ${state.walletId === wallet.id ? "selected" : ""}>
+                ${escapeHtml(wallet.currency)} wallet - ${escapeHtml(wallet.status)}
+              </option>
+            `
+          )
+          .join("")}
+      </select>
+    </label>
   `;
 }
 
@@ -443,12 +496,17 @@ function bindWorkspaceActions() {
     });
   });
 
-  appRoot.querySelector<HTMLInputElement>("#wallet-id")?.addEventListener("input", (event) => {
-    state.walletId = (event.target as HTMLInputElement).value.trim();
+  appRoot.querySelectorAll<HTMLButtonElement>("[data-wallet-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const walletId = button.dataset.walletId;
+      if (walletId) {
+        void selectWallet(walletId);
+      }
+    });
   });
 
   appRoot.querySelector("[data-action='refresh-wallet']")?.addEventListener("click", () => {
-    void loadWallet();
+    void refreshCustomerWallets(true);
   });
   appRoot.querySelector("[data-action='refresh-statement']")?.addEventListener("click", () => {
     void loadStatement();
@@ -497,12 +555,39 @@ function bindForm(selector: string, handler: (form: HTMLFormElement, submitter?:
   });
 }
 
-async function loadWallet() {
+async function refreshCustomerWallets(renderAfter: boolean) {
+  const wallets = await api.myWallets();
+  state.wallets = wallets;
+
+  if (wallets.length === 0) {
+    state.walletId = "";
+    state.balance = undefined;
+    state.statement = undefined;
+    state.message = "No wallets are linked to this customer yet.";
+  } else {
+    const selected = wallets.some((wallet) => wallet.id === state.walletId)
+      ? state.walletId
+      : wallets[0].id;
+    await loadWalletSnapshot(selected);
+    state.message = `Loaded ${wallets.length} wallet${wallets.length === 1 ? "" : "s"}.`;
+  }
+
+  if (renderAfter) {
+    render();
+  }
+}
+
+async function selectWallet(walletId: string) {
   await run(async () => {
-    const walletId = requireWalletId();
-    state.balance = await api.walletBalance(walletId);
-    state.message = `Loaded wallet ${shortId(walletId)}.`;
+    await loadWalletSnapshot(walletId);
+    state.message = `Selected wallet ${shortId(walletId)}.`;
   });
+}
+
+async function loadWalletSnapshot(walletId: string) {
+  state.walletId = walletId;
+  state.balance = await api.walletBalance(walletId);
+  state.statement = await api.walletStatement(walletId, 0, 20);
 }
 
 async function loadStatement() {
@@ -535,7 +620,7 @@ function handlePaymentAuthorization(form: HTMLFormElement) {
       {
         sourceWalletId: values.sourceWalletId,
         merchantId: values.merchantId,
-        amountMinor: Number(values.amountMinor),
+        amountMinor: parseMajorToMinor(values.amountMajor),
         currency: values.currency.toUpperCase()
       },
       crypto.randomUUID()
@@ -660,7 +745,7 @@ function transferRequest(form: HTMLFormElement): TransferRequest {
   return {
     sourceWalletId: values.sourceWalletId,
     destinationWalletId: values.destinationWalletId,
-    amountMinor: Number(values.amountMinor),
+    amountMinor: parseMajorToMinor(values.amountMajor),
     currency: values.currency.toUpperCase()
   };
 }
@@ -695,10 +780,6 @@ function isApiError(error: unknown): error is ApiError {
 
 function emptyState(message: string) {
   return `<div class="empty">${escapeHtml(message)}</div>`;
-}
-
-function formatMinor(amountMinor: number, currency: string) {
-  return `${amountMinor.toLocaleString()} ${currency}`;
 }
 
 function formatDate(value: string) {

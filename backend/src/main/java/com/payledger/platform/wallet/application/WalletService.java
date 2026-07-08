@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Currency;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -99,6 +100,11 @@ public class WalletService {
                 .orElseThrow(() ->
                         new ResourceNotFoundException("Wallet not found: " + walletId)
                 );
+    }
+
+    @Transactional(readOnly = true)
+    public List<Wallet> listWalletsForCustomer(UUID customerId) {
+        return walletRepository.findByCustomerIdOrderByCurrencyAsc(customerId);
     }
 
     private String normalizeCurrency(String requestedCurrency) {
