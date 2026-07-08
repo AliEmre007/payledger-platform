@@ -1,4 +1,4 @@
-import { createIcons, Activity, ArrowRightLeft, Banknote, LogIn, LogOut, RefreshCw, ShieldCheck } from "lucide";
+import { createIcons, Activity, ArrowRightLeft, Banknote, LogIn, LogOut, RefreshCw } from "lucide";
 import { ApiClient } from "./api";
 import { KeycloakAuthClient, hasOperationsRole } from "./auth";
 import { clearTransferDraft, getOrCreateTransferDraft } from "./idempotency";
@@ -78,7 +78,7 @@ async function boot() {
 
 function render() {
   appRoot.innerHTML = `
-    <div class="shell">
+    <div class="shell ${state.session.authenticated ? "workspace-shell" : "signed-out-shell"}">
       <header class="topbar">
         <div>
           <p class="eyebrow">Simulated wallet operations</p>
@@ -95,17 +95,13 @@ function render() {
     bindWorkspaceActions();
   }
   createIcons({
-    icons: { Activity, ArrowRightLeft, Banknote, LogIn, LogOut, RefreshCw, ShieldCheck }
+    icons: { Activity, ArrowRightLeft, Banknote, LogIn, LogOut, RefreshCw }
   });
 }
 
 function renderIdentity() {
   if (!state.session.authenticated) {
-    return `
-      <button class="button primary" data-action="login">
-        <i data-lucide="log-in"></i><span>Log in</span>
-      </button>
-    `;
+    return "";
   }
 
   return `
@@ -122,15 +118,50 @@ function renderIdentity() {
 function renderSignedOut() {
   return `
     <main class="signed-out">
-      <section class="login-panel">
-        <div>
-          <p class="eyebrow">Authorization Code + PKCE</p>
-          <h2>Sign in with Keycloak</h2>
-          <p>Use the local realm to access customer and operations workflows.</p>
+      <section class="login-hero" aria-labelledby="login-title">
+        <div class="login-copy">
+          <p class="eyebrow">Wallet operations workspace</p>
+          <h2 id="login-title">Manage simulated payments with confidence.</h2>
+          <p>Review wallets, authorize payments, monitor settlements, and inspect operational activity from one focused workspace.</p>
+          <button class="button primary login-cta" data-action="login">
+            <i data-lucide="log-in"></i><span>Log in</span>
+          </button>
         </div>
-        <button class="button primary" data-action="login">
-          <i data-lucide="shield-check"></i><span>Continue</span>
-        </button>
+        <div class="wallet-visual" aria-hidden="true">
+          <div class="visual-toolbar">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+          <div class="visual-grid">
+            <div class="wallet-card primary-card">
+              <span>Available balance</span>
+              <strong>$12,480.00</strong>
+              <small>USD wallet</small>
+            </div>
+            <div class="wallet-card secondary-card">
+              <span>Pending settlement</span>
+              <strong>$3,214.72</strong>
+              <small>Merchant batch</small>
+            </div>
+            <div class="wallet-card accent-card">
+              <span>Risk status</span>
+              <strong>Clear</strong>
+              <small>Last check 2 min ago</small>
+            </div>
+            <div class="mini-ledger">
+              <div><span></span><strong></strong></div>
+              <div><span></span><strong></strong></div>
+              <div><span></span><strong></strong></div>
+              <div><span></span><strong></strong></div>
+            </div>
+          </div>
+          <div class="activity-strip">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+        </div>
       </section>
     </main>
   `;
