@@ -1,4 +1,18 @@
-import { createIcons, Activity, ArrowRightLeft, Banknote, LogIn, LogOut, RefreshCw } from "lucide";
+import {
+  createIcons,
+  Activity,
+  ArrowRightLeft,
+  Banknote,
+  Building2,
+  CreditCard,
+  Landmark,
+  LayoutDashboard,
+  LogIn,
+  LogOut,
+  RefreshCw,
+  ShieldCheck,
+  WalletCards
+} from "lucide";
 import { ApiClient } from "./api";
 import { KeycloakAuthClient, hasOperationsRole } from "./auth";
 import { clearTransferDraft, getOrCreateTransferDraft } from "./idempotency";
@@ -88,7 +102,7 @@ function render() {
     <div class="shell ${state.session.authenticated ? "workspace-shell" : "signed-out-shell"}">
       <header class="topbar">
         <div>
-          <p class="eyebrow">Simulated wallet operations</p>
+          <p class="eyebrow">Digital wallet</p>
           <h1>PayLedger</h1>
         </div>
         <div class="identity">${renderIdentity()}</div>
@@ -102,7 +116,20 @@ function render() {
     bindWorkspaceActions();
   }
   createIcons({
-    icons: { Activity, ArrowRightLeft, Banknote, LogIn, LogOut, RefreshCw }
+    icons: {
+      Activity,
+      ArrowRightLeft,
+      Banknote,
+      Building2,
+      CreditCard,
+      Landmark,
+      LayoutDashboard,
+      LogIn,
+      LogOut,
+      RefreshCw,
+      ShieldCheck,
+      WalletCards
+    }
   });
 }
 
@@ -179,52 +206,116 @@ function renderWorkspace() {
     .map(
       (item) => `
         <button
-          class="tab ${state.activeView === item.id ? "active" : ""}"
+          class="side-nav-item ${state.activeView === item.id ? "active" : ""}"
           data-view="${item.id}"
         >
-          ${item.label}
+          <i data-lucide="${item.id === "operations" ? "shield-check" : "layout-dashboard"}"></i>
+          <span>${item.label}</span>
         </button>
       `
     )
     .join("");
 
   return `
-    <nav class="tabs" aria-label="Workspace">${navigation}</nav>
-    ${state.message ? `<div class="notice">${escapeHtml(state.message)}</div>` : ""}
-    <main class="workspace">
-      ${state.activeView === "operations" ? renderOperationsView() : renderCustomerView()}
-    </main>
+    <div class="app-frame">
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <span class="brand-mark">PL</span>
+          <div>
+            <strong>PayLedger</strong>
+            <small>Payments console</small>
+          </div>
+        </div>
+        <nav class="side-nav" aria-label="Workspace">${navigation}</nav>
+        <div class="sidebar-status">
+          <span>Simulation mode</span>
+            <strong>Demo funds only</strong>
+        </div>
+      </aside>
+      <div class="work-surface">
+        <div class="workspace-header">
+          <div>
+            <p class="eyebrow">${state.activeView === "operations" ? "Operations workspace" : "Customer dashboard"}</p>
+            <h2>${state.activeView === "operations" ? "Operational control center" : "Wallet overview"}</h2>
+          </div>
+          <div class="header-actions">
+            <button class="button subtle" data-action="refresh-wallet" type="button">
+              <i data-lucide="refresh-cw"></i><span>Refresh</span>
+            </button>
+          </div>
+        </div>
+        ${state.message ? `<div class="notice">${escapeHtml(state.message)}</div>` : ""}
+        <main class="workspace">
+          ${state.activeView === "operations" ? renderOperationsView() : renderCustomerView()}
+        </main>
+      </div>
+    </div>
   `;
 }
 
 function renderCustomerView() {
+  const selectedWallet = currentWallet();
+
   return `
-    <section class="band two-column">
-      <div class="panel">
+    <section class="summary-strip" aria-label="Wallet summary">
+      ${renderSummaryMetric("Available", state.balance ? formatMinor(state.balance.availableBalanceMinor, state.balance.currency) : "No wallet", "Ready to use")}
+      ${renderSummaryMetric("Total balance", state.balance ? formatMinor(state.balance.ledgerBalanceMinor, state.balance.currency) : "-", "Posted balance")}
+      ${renderSummaryMetric("Pending", state.balance ? formatMinor(state.balance.heldAmountMinor, state.balance.currency) : "-", "Reserved payments")}
+      ${renderSummaryMetric("Wallet status", state.balance?.status ?? selectedWallet?.status ?? "-", selectedWallet ? accountReference(selectedWallet.id) : "No wallet selected")}
+    </section>
+
+    <section class="customer-dashboard">
+      <aside class="account-panel panel">
         <div class="panel-header">
-          <h2>My Wallets</h2>
+          <div>
+            <p class="section-label">Accounts</p>
+            <h2>My wallets</h2>
+          </div>
           <button class="icon-button" data-action="refresh-wallet" title="Refresh wallet">
             <i data-lucide="refresh-cw"></i>
           </button>
         </div>
         ${renderWalletCards()}
         ${state.balance ? renderBalance(state.balance) : emptyState("Load an owned wallet balance.")}
-      </div>
-      <div class="panel">
+      </aside>
+
+      <section class="main-ledger panel">
         <div class="panel-header">
-          <h2>Statement</h2>
+          <div>
+            <p class="section-label">Activity</p>
+            <h2>Recent transactions</h2>
+          </div>
           <button class="icon-button" data-action="refresh-statement" title="Refresh statement">
             <i data-lucide="activity"></i>
           </button>
         </div>
         ${state.statement ? renderStatement(state.statement) : emptyState("Statement rows appear after ledger postings.")}
-      </div>
-    </section>
-    <section class="band two-column">
-      <form class="panel" id="transfer-form">
-        <h2>Transfer</h2>
+      </section>
+
+      <aside class="detail-panel">
+        <div class="panel selected-wallet-panel">
+          <p class="section-label">Selected wallet</p>
+          <div class="selected-wallet-title">
+            <i data-lucide="wallet-cards"></i>
+            <div>
+              <h2>${selectedWallet ? `${escapeHtml(selectedWallet.currency)} wallet` : "No wallet"}</h2>
+              <span>${selectedWallet ? escapeHtml(selectedWallet.status) : "Unavailable"}</span>
+            </div>
+          </div>
+          <dl class="wallet-meta">
+            <div><dt>Account ref</dt><dd>${selectedWallet ? escapeHtml(accountReference(selectedWallet.id)) : "-"}</dd></div>
+            <div><dt>Currency</dt><dd>${selectedWallet ? escapeHtml(selectedWallet.currency) : "-"}</dd></div>
+            <div><dt>Profile</dt><dd>${escapeHtml(roleLabel(state.session.roles))}</dd></div>
+          </dl>
+        </div>
+
+        <form class="panel action-panel" id="transfer-form">
+        <div class="action-title">
+          <i data-lucide="arrow-right-left"></i>
+          <h2>Transfer</h2>
+        </div>
         ${renderWalletSelect("sourceWalletId", "From wallet")}
-        <label>Destination wallet <input name="destinationWalletId" required /></label>
+        <label>Recipient account <input name="destinationWalletId" placeholder="Recipient account reference" required /></label>
         <div class="inline-fields">
           <label>Amount <input name="amountMajor" inputmode="decimal" placeholder="125.00" required /></label>
           <label>Currency <input name="currency" maxlength="3" value="${escapeAttribute(state.balance?.currency ?? "TRY")}" required /></label>
@@ -234,21 +325,40 @@ function renderCustomerView() {
         </button>
         ${state.lastTransfer ? `<p class="result">${escapeHtml(state.lastTransfer)}</p>` : ""}
       </form>
-      <form class="panel" id="payment-form">
-        <h2>Payment Authorization</h2>
+
+      <form class="panel action-panel" id="payment-form">
+        <div class="action-title">
+          <i data-lucide="credit-card"></i>
+          <h2>Pay merchant</h2>
+        </div>
         ${renderWalletSelect("sourceWalletId", "From wallet")}
-        <label>Merchant ID <input name="merchantId" required /></label>
+        <label>Merchant reference <input name="merchantId" placeholder="Merchant account reference" required /></label>
         <div class="inline-fields">
           <label>Amount <input name="amountMajor" inputmode="decimal" placeholder="125.00" required /></label>
           <label>Currency <input name="currency" maxlength="3" value="${escapeAttribute(state.balance?.currency ?? "TRY")}" required /></label>
         </div>
         <button class="button" type="submit">
-          <i data-lucide="banknote"></i><span>Authorize</span>
+          <i data-lucide="banknote"></i><span>Pay merchant</span>
         </button>
         ${renderPaymentResult()}
       </form>
+      </aside>
     </section>
   `;
+}
+
+function renderSummaryMetric(label: string, value: string, detail: string) {
+  return `
+    <div class="metric-card">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+      <small>${escapeHtml(detail)}</small>
+    </div>
+  `;
+}
+
+function currentWallet() {
+  return state.wallets.find((wallet) => wallet.id === state.walletId);
 }
 
 function renderWalletCards() {
@@ -268,7 +378,7 @@ function renderWalletCards() {
             >
               <span>${escapeHtml(wallet.currency)} wallet</span>
               <strong>${escapeHtml(wallet.status)}</strong>
-              <small>${escapeHtml(shortId(wallet.id))}</small>
+              <small>${escapeHtml(accountReference(wallet.id))}</small>
             </button>
           `
         )
@@ -302,8 +412,8 @@ function renderWalletSelect(name: string, label: string) {
 function renderBalance(balance: WalletBalance) {
   return `
     <div class="balance-grid">
-      <div><span>Ledger</span><strong>${formatMinor(balance.ledgerBalanceMinor, balance.currency)}</strong></div>
-      <div><span>Held</span><strong>${formatMinor(balance.heldAmountMinor, balance.currency)}</strong></div>
+      <div><span>Total</span><strong>${formatMinor(balance.ledgerBalanceMinor, balance.currency)}</strong></div>
+      <div><span>Pending</span><strong>${formatMinor(balance.heldAmountMinor, balance.currency)}</strong></div>
       <div><span>Available</span><strong>${formatMinor(balance.availableBalanceMinor, balance.currency)}</strong></div>
       <div><span>Status</span><strong>${escapeHtml(balance.status)}</strong></div>
     </div>
@@ -318,15 +428,15 @@ function renderStatement(statement: WalletStatement) {
   return `
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Occurred</th><th>Type</th><th>Direction</th><th>Amount</th></tr></thead>
+        <thead><tr><th>Date</th><th>Description</th><th>Status</th><th>Amount</th></tr></thead>
         <tbody>
           ${statement.entries
             .map(
               (entry) => `
                 <tr>
                   <td>${formatDate(entry.occurredAt)}</td>
-                  <td>${escapeHtml(entry.journalType)}</td>
-                  <td>${escapeHtml(entry.direction)}</td>
+                  <td>${escapeHtml(transactionLabel(entry.journalType, entry.direction))}</td>
+                  <td>${escapeHtml(transactionStatus(entry.direction))}</td>
                   <td>${formatMinor(entry.signedAmountMinor, entry.currency)}</td>
                 </tr>
               `
@@ -346,11 +456,11 @@ function renderPaymentResult() {
   const payment = state.lastPayment;
   return `
     <div class="result">
-      <strong>${escapeHtml(payment.status)}</strong>
-      <span>${escapeHtml(payment.id)}</span>
+      <strong>${escapeHtml(paymentStatusLabel(payment.status))}</strong>
+      <span>${escapeHtml(accountReference(payment.id))}</span>
       ${
         payment.status === "AUTHORIZED"
-          ? `<button class="button subtle" type="button" data-action="cancel-payment" data-id="${escapeAttribute(payment.id)}">Cancel</button>`
+          ? `<button class="button subtle" type="button" data-action="cancel-payment" data-id="${escapeAttribute(payment.id)}">Cancel payment</button>`
           : ""
       }
     </div>
@@ -787,6 +897,48 @@ function formatDate(value: string) {
     dateStyle: "short",
     timeStyle: "short"
   }).format(new Date(value));
+}
+
+function transactionLabel(journalType: string, direction: string) {
+  const directionLabel = direction === "DEBIT" ? "sent" : "received";
+  const labels: Record<string, string> = {
+    INTERNAL_TRANSFER: `Transfer ${directionLabel}`,
+    WALLET_TOP_UP: "Wallet top-up",
+    PAYMENT_AUTHORIZATION: "Merchant payment pending",
+    PAYMENT_CAPTURE: "Merchant payment",
+    PAYMENT_REFUND: "Refund received",
+    PAYMENT_CANCEL: "Payment canceled",
+    SETTLEMENT: "Merchant settlement"
+  };
+
+  return labels[journalType] ?? humanizeEnum(journalType);
+}
+
+function transactionStatus(direction: string) {
+  return direction === "DEBIT" ? "Money out" : "Money in";
+}
+
+function paymentStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    AUTHORIZED: "Payment pending",
+    CAPTURED: "Payment completed",
+    CANCELED: "Payment canceled",
+    REFUNDED: "Payment refunded"
+  };
+
+  return labels[status] ?? humanizeEnum(status);
+}
+
+function humanizeEnum(value: string) {
+  return value
+    .toLowerCase()
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function accountReference(value: string) {
+  return value.length > 4 ? `•••• ${value.slice(-4)}` : value;
 }
 
 function shortId(value: string) {
